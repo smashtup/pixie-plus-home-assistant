@@ -1,0 +1,22 @@
+{
+  "title": "Pixie Plus Cloud Integration",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Pixie Plus Cloud",
+        "description": "Provide the credentials you use in the Pixie Plus app",
+        "data": {
+          "username": "Username (email)",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Can not connect/login (check logs)"
+    },
+    "abort": {
+      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
+      "no_devices_found": "[%key:common::config_flow::abort::no_devices_found%]"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "pixie_plus_cloud",
+  "name": "Pixie Plus Cloud Control",
+  "codeowners": [
+    "@smashtup"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/smashtup/pixie-plus-home-assistant",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/smashtup/pixie-plus-home-assistant/issues",
+  "requirements": [
+    "websocket-client==1.9.0"
+  ],
+  "version": "0.0.1"
+}

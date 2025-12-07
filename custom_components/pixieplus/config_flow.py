@@ -110,6 +110,6 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="no_devices_found")
 
         data = await self.hass.async_add_executor_job(pixieplus_cloud.credentials)
-        data.append({CONF_DEVICES: devices})
+        data[CONF_DEVICES] = devices
 
         return self.async_create_entry(title="Pixie Plus Cloud Control", data=data)

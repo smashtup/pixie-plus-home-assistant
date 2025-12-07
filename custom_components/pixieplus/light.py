@@ -64,13 +64,15 @@ async def async_setup_entry(
             device[CONF_DEVICE_MAC],
             device[CONF_DEVICE_ID],
             device[CONF_DEVICE_NAME],
+            device[CONF_FIRMWARE],
             device_specs,
         )
         _LOGGER.info(
-            "Setup light %s %s %s",
+            "Setup light %s %s %s %d",
             device[CONF_DEVICE_MAC],
             device[CONF_DEVICE_ID],
             device[CONF_DEVICE_NAME],
+            device[CONF_FIRMWARE],
         )
 
         lights.append(light)
@@ -96,6 +98,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
         mac: str,
         device_id: int,
         name: str,
+        firmware: int,
         device_specs,
     ):
         """Initialize an PixiePlus Light."""
@@ -107,6 +110,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
         self._attr_name = name
         self._attr_unique_id = "salpixielight-%s" % self._device_id
 
+        self._firmware = firmware
         self._device_specs = device_specs
 
         self._state = None
@@ -125,7 +129,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
             name=self.name,
             manufacturer=self._device_specs[CONF_MANUFACTURER],
             model=self._device_specs[CONF_MODEL],
-            sw_version=self._device_specs[CONF_FIRMWARE],
+            sw_version=self._firmware,
             via_device=(DOMAIN, "Pixie Plus Hub"),
         )
 

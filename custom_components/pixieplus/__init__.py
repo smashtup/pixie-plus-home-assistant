@@ -10,13 +10,15 @@ from .const import (
 )
 
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
-from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
-from homeassistant.components.cover import DOMAIN as COVER_DOMAIN
+
+# from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
+# from homeassistant.components.cover import DOMAIN as COVER_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 
-PLATFORMS = [COVER_DOMAIN, LIGHT_DOMAIN, SWITCH_DOMAIN]
+# PLATFORMS = [COVER_DOMAIN, LIGHT_DOMAIN, SWITCH_DOMAIN]
+PLATFORMS = [LIGHT_DOMAIN]
 
 _LOGGER = logging.getLogger(__name__)
 

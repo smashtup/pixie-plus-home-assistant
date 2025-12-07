@@ -150,14 +150,14 @@ class PixiePlusCloud:
         self._pixieplus_ws_listeners[class_name].append(callback)
 
     def subscribeHomeUpdates(self):
-        self._ws_subscribe_class(2, "Home", {"objectId": self.currentHomeId(self)})
+        self._ws_subscribe_class(2, "Home", {"objectId": self.currentHomeId()})
 
     def subscribeLiveGroupUpdates(self):
-        self._ws_subscribe_class(1, "LiveGroup", {"objectId": self.liveGroupId(self)})
+        self._ws_subscribe_class(1, "LiveGroup", {"objectId": self.liveGroupId()})
 
     def subscribeHPUpdates(self):
         self._ws_subscribe_class(
-            3, "HP", {"homeId": self.currentHomeId(self), "userId": self.userObjectId}
+            3, "HP", {"homeId": self.currentHomeId(), "userId": self.userObjectId()}
         )
 
     def _fetch_class(
@@ -205,7 +205,7 @@ class PixiePlusCloud:
                 {
                     "where": {
                         "GroupID": {
-                            "$regex": self.currentHomeId(self) + "$",
+                            "$regex": self.currentHomeId() + "$",
                             "$options": "i",
                         }
                     },
@@ -223,8 +223,8 @@ class PixiePlusCloud:
             CONF_PASSWORD: self._password,
             CONF_INSTALLATION_ID: self._installation_id,
             CONF_SESSION_TOKEN: self._session_token,
-            CONF_USER_OBJECT_ID: self.userObjectId(self),
-            CONF_CURRENT_HOME_ID: self.currentHomeId(self),
-            CONF_LIVE_GROUP_ID: self.liveGroupId(self),
+            CONF_USER_OBJECT_ID: self.userObjectId(),
+            CONF_CURRENT_HOME_ID: self.currentHomeId(),
+            CONF_LIVE_GROUP_ID: self.liveGroupId(),
         }
         return credentials

@@ -174,7 +174,7 @@ class PixiePlusCloud:
 
         response = requests.request(
             "POST",
-            self.api_url + "classes/" + class_name,
+            PIXIE_PLUS_CLOUD_URL + "classes/" + class_name,
             headers=headers,
             data=payload,
         )

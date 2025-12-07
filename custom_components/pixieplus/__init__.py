@@ -5,25 +5,9 @@ import logging
 
 from .pixieplus_handler import PixiePlusHandler
 
-from homeassistant.const import (
-    CONF_USERNAME,
-    CONF_PASSWORD
-)
 from .const import (
     DOMAIN,
-    CONF_INSTALLATION_ID,
-    CONF_SESSION_TOKEN,
-    CONF_CURRENT_HOME_ID,
-    CONF_LIVE_GROUP_ID,
-    CONF_DEVICES,
-    CONF_DEVICE_NAME,
-    CONF_DEVICE_MAC,
-    CONF_TYPE,
-    CONF_STYPE,
-    CONF_MODEL,
-    CONF_MANUFACTURER,
-    CONF_FIRMWARE,
-    PIXIE_DEVICES_SPECS)
+)
 
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -51,7 +35,7 @@ async def async_setup(hass, config):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Pixie Plus via a config (flow) entry."""
 
-    _LOGGER.info('setup config flow entry %s', entry.data)
+    _LOGGER.info("setup config flow entry %s", entry.data)
 
     handler = PixiePlusHandler(hass, entry)
 
@@ -65,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass, entry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info('Unload entry %s', entry.entry_id)
+    _LOGGER.info("Unload entry %s", entry.entry_id)
     if entry.entry_id in hass.data[DOMAIN]:
         await hass.data[DOMAIN][entry.entry_id].async_shutdown()
 

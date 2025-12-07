@@ -3,4 +3,6 @@
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
 .coverage
+__pycache__
 custom_components/pixieplus/__pycache__
+custom_components/pixieplus/tests/__pycache__

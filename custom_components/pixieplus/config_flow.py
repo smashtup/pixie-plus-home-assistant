@@ -10,6 +10,7 @@ from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from .const import (
     DOMAIN,
     CONF_DEVICES,
+    CONF_DEVICE_ID,
     CONF_DEVICE_NAME,
     CONF_DEVICE_MAC,
     CONF_TYPE,
@@ -71,6 +72,9 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
         devices = []
         for device in await self.hass.async_add_executor_job(pixieplus_cloud.devices):
             _LOGGER.debug("Processing device - %s", device)
+            if CONF_DEVICE_ID not in device:
+                _LOGGER.warning("Skipped device, missing id - %s", device)
+                continue
             if CONF_TYPE not in device:
                 _LOGGER.warning("Skipped device, missing type - %s", device)
                 continue
@@ -92,6 +96,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
 
             devices.append(
                 {
+                    CONF_DEVICE_ID: device[CONF_DEVICE_ID],
                     CONF_DEVICE_NAME: device[CONF_DEVICE_NAME],
                     CONF_DEVICE_MAC: device[CONF_DEVICE_MAC],
                     CONF_TYPE: device[CONF_TYPE],

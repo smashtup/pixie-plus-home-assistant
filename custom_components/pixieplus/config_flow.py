@@ -69,7 +69,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         devices = []
-        for device in await self.hass.async_add_executor_job(pixieplus_cloud.devices()):
+        for device in await self.hass.async_add_executor_job(pixieplus_cloud.devices):
             _LOGGER.debug("Processing device - %s", device)
             if CONF_TYPE not in device:
                 _LOGGER.warning("Skipped device, missing type - %s", device)

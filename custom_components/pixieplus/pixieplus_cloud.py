@@ -49,7 +49,7 @@ class PixiePlusCloud:
         if not self._installation_id:
             self._installation_id = str(uuid.uuid4())
 
-    async def login(self):
+    def login(self):
         payload = json.dumps(
             {"username": self._username, "password": self._password, "_method": "GET"}
         )
@@ -76,7 +76,7 @@ class PixiePlusCloud:
             else None
         )
 
-    async def connect_ws(self):
+    def connect_ws(self):
         self._pixieplus_ws_conn = websocket.WebSocketApp(
             PIXIE_PLUS_CLOUD_WS_URL,
             header={},
@@ -87,7 +87,7 @@ class PixiePlusCloud:
         )
         self._pixieplus_ws_conn.run_forever()
 
-    async def _on_ws_open(self):
+    def _on_ws_open(self):
         _LOGGER.info("Opened connection to PixiePlus WebSocket endpoint")
         payload = json.dumps(
             {
@@ -97,7 +97,7 @@ class PixiePlusCloud:
                 "clientKey": PIXIE_PLUS_CLOUD_CLIENT_KEY,
             }
         )
-        await self._pixieplus_ws_conn.send(payload)
+        self._pixieplus_ws_conn.send(payload)
 
     def _on_ws_message(self, message: str):
         message_data = json.loads(message)
@@ -134,9 +134,7 @@ class PixiePlusCloud:
     def _on_ws_close(self, close_status_code: int, close_msg: str):
         _LOGGER.info("WebSocket closed: %s - %s", close_status_code, close_msg)
 
-    async def _ws_subscribe_class(
-        self, request_id, class_name: str, where_value: dict = {}
-    ):
+    def _ws_subscribe_class(self, request_id, class_name: str, where_value: dict = {}):
         payload = json.dumps(
             {
                 "op": "subscribe",
@@ -144,25 +142,25 @@ class PixiePlusCloud:
                 "query": {"className": class_name, "where": json.dumps(where_value)},
             }
         )
-        await self._pixieplus_ws_conn.send(payload)
+        self._pixieplus_ws_conn.send(payload)
 
     def _subscribe_class_update_listener(self, class_name: str, callback: any):
         if class_name not in self._pixieplus_ws_listeners:
             self._pixieplus_ws_listeners[class_name] = []
         self._pixieplus_ws_listeners[class_name].append(callback)
 
-    async def subscribeHomeUpdates(self):
+    def subscribeHomeUpdates(self):
         self._ws_subscribe_class(2, "Home", {"objectId": self.currentHomeId(self)})
 
-    async def subscribeLiveGroupUpdates(self):
+    def subscribeLiveGroupUpdates(self):
         self._ws_subscribe_class(1, "LiveGroup", {"objectId": self.liveGroupId(self)})
 
-    async def subscribeHPUpdates(self):
+    def subscribeHPUpdates(self):
         self._ws_subscribe_class(
             3, "HP", {"homeId": self.currentHomeId(self), "userId": self.userObjectId}
         )
 
-    async def _fetch_class(
+    def _fetch_class(
         self, class_name: str, where: dict = {"where": {}, "_method": "GET"}
     ):
         payload = json.dumps(where)
@@ -186,19 +184,19 @@ class PixiePlusCloud:
 
         return response.json()["results"]
 
-    async def userObjectId(self):
+    def userObjectId(self):
         if self._user_object_id is None:
             self._user_object_id = self._fetch_class(
                 "_User", {"where": {"username": self._username}, "_method": "GET"}
             )[0]["objectId"]
         return self._user_object_id
 
-    async def currentHomeId(self):
+    def currentHomeId(self):
         if self._cur_home_id is None:
             self._cur_home_id = self._fetch_class("Home")[0]["objectId"]
         return self._cur_home_id
 
-    async def liveGroupId(self):
+    def liveGroupId(self):
         if self._live_group_id is not None:
             return self._live_group_id
         else:
@@ -216,10 +214,10 @@ class PixiePlusCloud:
                 },
             )[0]["objectId"]
 
-    async def devices(self):
+    def devices(self):
         return self._fetch_class("Home")[0]["deviceList"]
 
-    async def credentials(self):
+    def credentials(self):
         credentials = {
             CONF_USERNAME: self._username,
             CONF_PASSWORD: self._password,

@@ -55,7 +55,7 @@ class PixiePlusHandler(DataUpdateCoordinator):
 
     async def _async_setup(self):
         try:
-            await self.hass.async_add_executor_job(self._pixieplus_cloud.login())
+            await self.hass.async_add_executor_job(self._pixieplus_cloud.login)
             await self.hass.async_create_background_task(
                 self._pixieplus_cloud.connect_ws
             )

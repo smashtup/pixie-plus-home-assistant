@@ -6,6 +6,7 @@ import ssl
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.httpx_client import get_async_client
 
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from .const import (
@@ -45,6 +46,7 @@ class PixiePlusHandler(DataUpdateCoordinator):
         self._devices = entry.data[CONF_DEVICES]
 
         self._pixieplus_cloud = PixiePlusCloud(
+            get_async_client(self.hass, True),
             self._username,
             self._password,
             self._installation_id,

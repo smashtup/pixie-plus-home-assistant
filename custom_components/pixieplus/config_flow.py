@@ -5,6 +5,7 @@ import logging
 
 import voluptuous as vol
 
+from homeassistant.helpers.httpx_client import get_async_client
 from homeassistant.config_entries import ConfigFlow, CONN_CLASS_CLOUD_PUSH
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from .const import (
@@ -49,7 +50,9 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             password = user_input.get(CONF_PASSWORD)
 
         if username and password:
-            pixieplus_cloud = PixiePlusCloud(username, password)
+            pixieplus_cloud = PixiePlusCloud(
+                get_async_client(self.hass, True), username, password
+            )
 
             try:
                 await self.hass.async_add_executor_job(pixieplus_cloud.login)

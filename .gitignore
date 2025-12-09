@@ -7,3 +7,4 @@ __pycache__
 custom_components/pixieplus/__pycache__
 custom_components/pixieplus/tests/__pycache__
 .codacy
+.DS_Store

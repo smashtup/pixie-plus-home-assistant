@@ -134,12 +134,6 @@ class PixieLight(CoordinatorEntity, LightEntity):
         )
 
     @property
-    def icon(self) -> str | None:
-        if "Spot" in self._model:
-            return "mdi:wall-sconce-flat"
-        return None
-
-    @property
     def available(self) -> bool:
         """Return True if entity is available."""
         if self._state is None:

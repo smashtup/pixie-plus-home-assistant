@@ -1,12 +1,12 @@
 """Pixie Plus Cloud API"""
 
-import requests
 import websocket
 import json
 import uuid
 import logging
 
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
+from homeassistant.helpers.httpx_client import get_async_client
 from .const import (
     CONF_INSTALLATION_ID,
     CONF_SESSION_TOKEN,
@@ -61,7 +61,8 @@ class PixiePlusCloud:
             "content-type": "application/json",
         }
 
-        response = requests.request(
+        client = get_async_client(self.hass, True)
+        response = client.request(
             "POST", PIXIE_PLUS_CLOUD_URL + "login", headers=headers, data=payload
         )
 
@@ -179,7 +180,8 @@ class PixiePlusCloud:
             "x-parse-session-token": self._session_token,
         }
 
-        response = requests.request(
+        client = get_async_client(self.hass, True)
+        response = client.request(
             "POST",
             PIXIE_PLUS_CLOUD_URL + "classes/" + class_name,
             headers=headers,

@@ -58,7 +58,8 @@ class PixiePlusHandler(DataUpdateCoordinator):
         try:
             await self.hass.async_add_executor_job(self._pixieplus_cloud.login)
             await self.hass.async_create_background_task(
-                self._pixieplus_cloud.connect_ws
+                self._pixieplus_cloud.connect_ws,
+                "Pixie Plus Cloud WebSocket Connection",
             )
             await self.hass.aysnc_add_executor_job(
                 self._pixieplus_cloud.subscribeHomeUpdates

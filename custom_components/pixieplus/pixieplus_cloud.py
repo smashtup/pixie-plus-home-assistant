@@ -16,7 +16,7 @@ from .const import (
 )
 
 PIXIE_PLUS_CLOUD_URL = "https://www.pixie.app/p0/pixieCloud/"
-PIXIE_PLUS_CLOUD_WS_URL = "wss://ws.pixie.app/websocket"
+PIXIE_PLUS_CLOUD_WS_URL = "wss://www.pixie.app/ws/p0/pixieCloud:443"
 PIXIE_PLUS_CLOUD_APPLICATION_ID = "6426f04c206c108275ede71b9fd09ac8"
 PIXIE_PLUS_CLOUD_CLIENT_KEY = "35779bd411c751ff87577cd762118dad"
 

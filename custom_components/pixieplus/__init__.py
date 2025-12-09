@@ -23,7 +23,7 @@ PLATFORMS = [LIGHT_DOMAIN]
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup(hass, config):
+def setup(hass, config):
     """Set up the Pixie Plus Cover component from configuration.yaml"""
 
     if DOMAIN not in config:  # in case there is no cover device

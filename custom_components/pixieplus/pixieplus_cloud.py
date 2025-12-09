@@ -16,7 +16,7 @@ from .const import (
 )
 
 PIXIE_PLUS_CLOUD_URL = "https://www.pixie.app/p0/pixieCloud/"
-PIXIE_PLUS_CLOUD_WS_URL = "wss://www.pixie.app/ws/p0/pixieCloud:443"
+PIXIE_PLUS_CLOUD_WS_URL = "wss://www.pixie.app/ws/p0/pixieCloud"
 PIXIE_PLUS_CLOUD_APPLICATION_ID = "6426f04c206c108275ede71b9fd09ac8"
 PIXIE_PLUS_CLOUD_CLIENT_KEY = "35779bd411c751ff87577cd762118dad"
 
@@ -76,7 +76,9 @@ class PixiePlusCloud:
             else None
         )
 
-    def connect_ws(self):
+    def connect_ws(self, ssl_context):
+        websocket.enableTrace(True)
+
         self._pixieplus_ws_conn = websocket.WebSocketApp(
             PIXIE_PLUS_CLOUD_WS_URL,
             header={},
@@ -85,7 +87,7 @@ class PixiePlusCloud:
             on_error=self._on_ws_error,
             on_close=self._on_ws_close,
         )
-        self._pixieplus_ws_conn.run_forever()
+        self._pixieplus_ws_conn.run_forever(sslopt={"context": ssl_context})
 
     def _on_ws_open(self, ws):
         _LOGGER.info("Opened connection to PixiePlus WebSocket endpoint")
@@ -108,6 +110,9 @@ class PixiePlusCloud:
         if opcode == "connected" and clientId is not None:
             _LOGGER.info("Connected to PixiePlus Cloud WebSocket")
             self._pixieplus_ws_client_id = clientId
+            self.subscribeHomeUpdates(ws)
+            self.subscribeLiveGroupUpdates(ws)
+            self.subscribeHPUpdates(ws)
             return
         if opcode == "subscribed" and clientId == self._pixieplus_ws_client_id:
             _LOGGER.info(
@@ -134,7 +139,9 @@ class PixiePlusCloud:
     def _on_ws_close(self, ws, close_status_code: int, close_msg: str):
         _LOGGER.info("WebSocket closed: %s - %s", close_status_code, close_msg)
 
-    def _ws_subscribe_class(self, request_id, class_name: str, where_value: dict = {}):
+    def _ws_subscribe_class(
+        self, ws, request_id, class_name: str, where_value: dict = {}
+    ):
         payload = json.dumps(
             {
                 "op": "subscribe",
@@ -142,22 +149,22 @@ class PixiePlusCloud:
                 "query": {"className": class_name, "where": json.dumps(where_value)},
             }
         )
-        self._pixieplus_ws_conn.send(payload)
+        ws.send(payload)
 
     def _subscribe_class_update_listener(self, class_name: str, callback: any):
         if class_name not in self._pixieplus_ws_listeners:
             self._pixieplus_ws_listeners[class_name] = []
         self._pixieplus_ws_listeners[class_name].append(callback)
 
-    def subscribeHomeUpdates(self):
-        self._ws_subscribe_class(2, "Home", {"objectId": self.currentHomeId()})
+    def subscribeHomeUpdates(self, ws):
+        self._ws_subscribe_class(ws, 2, "Home", {"objectId": self.currentHomeId()})
 
-    def subscribeLiveGroupUpdates(self):
-        self._ws_subscribe_class(1, "LiveGroup", {"objectId": self.liveGroupId()})
+    def subscribeLiveGroupUpdates(self, ws):
+        self._ws_subscribe_class(ws, 1, "LiveGroup", {"objectId": self.liveGroupId()})
 
-    def subscribeHPUpdates(self):
+    def subscribeHPUpdates(self, ws):
         self._ws_subscribe_class(
-            3, "HP", {"homeId": self.currentHomeId(), "userId": self.userObjectId()}
+            ws, 3, "HP", {"homeId": self.currentHomeId(), "userId": self.userObjectId()}
         )
 
     def _fetch_class(

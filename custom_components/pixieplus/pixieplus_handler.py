@@ -1,6 +1,7 @@
 """PixiePlus handler"""
 
 import logging
+import ssl
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -56,19 +57,13 @@ class PixiePlusHandler(DataUpdateCoordinator):
     async def _async_setup(self):
         _LOGGER.info("Subscribing to PixiePlus updates")
         try:
+            ssl_context = await self.hass.async_add_executor_job(
+                ssl.create_default_context
+            )
             await self.hass.async_add_executor_job(self._pixieplus_cloud.login)
             await self.hass.async_create_background_task(
-                self._pixieplus_cloud.connect_ws(),
+                self._pixieplus_cloud.connect_ws(ssl_context),
                 "Pixie Plus Cloud WebSocket Connection",
-            )
-            await self.hass.aysnc_add_executor_job(
-                self._pixieplus_cloud.subscribeHomeUpdates
-            )
-            await self.hass.aysnc_add_executor_job(
-                self._pixieplus_cloud.subscribeLiveGroupUpdates
-            )
-            await self.hass.aysnc_add_executor_job(
-                self._pixieplus_cloud.subscribeHPUpdates
             )
 
         except Exception as e:

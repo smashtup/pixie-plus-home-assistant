@@ -87,7 +87,7 @@ class PixiePlusCloud:
         )
         self._pixieplus_ws_conn.run_forever()
 
-    def _on_ws_open(self):
+    def _on_ws_open(self, ws):
         _LOGGER.info("Opened connection to PixiePlus WebSocket endpoint")
         payload = json.dumps(
             {
@@ -97,9 +97,9 @@ class PixiePlusCloud:
                 "clientKey": PIXIE_PLUS_CLOUD_CLIENT_KEY,
             }
         )
-        self._pixieplus_ws_conn.send(payload)
+        ws.send(payload)
 
-    def _on_ws_message(self, message: str):
+    def _on_ws_message(self, ws, message: str):
         message_data = json.loads(message)
         opcode = message_data.get("op", None)
         clientId = message_data.get("clientId", None)
@@ -128,10 +128,10 @@ class PixiePlusCloud:
                             callback(classObject)
             return
 
-    def _on_ws_error(self, error: str):
+    def _on_ws_error(self, ws, error: str):
         _LOGGER.error("WebSocket error: %s", error)
 
-    def _on_ws_close(self, close_status_code: int, close_msg: str):
+    def _on_ws_close(self, ws, close_status_code: int, close_msg: str):
         _LOGGER.info("WebSocket closed: %s - %s", close_status_code, close_msg)
 
     def _ws_subscribe_class(self, request_id, class_name: str, where_value: dict = {}):

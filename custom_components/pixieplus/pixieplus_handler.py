@@ -40,7 +40,7 @@ class PixiePlusHandler(DataUpdateCoordinator):
         self._password = entry.data[CONF_PASSWORD]
         self._installation_id = entry.data[CONF_INSTALLATION_ID]
         self._session_token = entry.data[CONF_SESSION_TOKEN]
-        self._user_object_id = entry.data.get(CONF_USER_OBJECT_ID)
+        self._user_object_id = entry.data[CONF_USER_OBJECT_ID]
         self._current_home_id = entry.data[CONF_CURRENT_HOME_ID]
         self._live_group_id = entry.data[CONF_LIVE_GROUP_ID]
         self._devices = entry.data[CONF_DEVICES]
@@ -62,10 +62,9 @@ class PixiePlusHandler(DataUpdateCoordinator):
             ssl_context = await self.hass.async_add_executor_job(
                 ssl.create_default_context
             )
-            await self.hass.async_add_executor_job(self._pixieplus_cloud.login)
-            await self.hass.async_create_background_task(
-                self._pixieplus_cloud.connect_ws(ssl_context),
-                "Pixie Plus Cloud WebSocket Connection",
+            await self._pixieplus_cloud.login()
+            self.hass.async_add_executor_job(
+                self._pixieplus_cloud.connect_ws, ssl_context
             )
 
         except Exception as e:

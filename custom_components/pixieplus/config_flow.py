@@ -27,10 +27,6 @@ from .pixieplus_cloud import PixiePlusCloud
 _LOGGER = logging.getLogger(__name__)
 
 
-def create_pixieplus_cloud_object(username, password) -> PixiePlusCloud:
-    return PixiePlusCloud(username, password)
-
-
 class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a Pixie Plus config flow."""
 
@@ -46,8 +42,8 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
         pixieplus_cloud = None
 
         if user_input is not None:
-            username = user_input.get(CONF_USERNAME).lower()
-            password = user_input.get(CONF_PASSWORD)
+            username = user_input.get(CONF_USERNAME, "").lower()
+            password = user_input.get(CONF_PASSWORD, "")
 
         if username and password:
             pixieplus_cloud = PixiePlusCloud(
@@ -55,7 +51,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
             try:
-                await self.hass.async_add_executor_job(pixieplus_cloud.login)
+                await pixieplus_cloud.login()
             except Exception as e:
                 _LOGGER.error("Can not login to Pixie Plus Cloud [%s]", e)
                 errors[CONF_PASSWORD] = "cannot_connect"
@@ -73,7 +69,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         devices = []
-        for device in await self.hass.async_add_executor_job(pixieplus_cloud.devices):
+        for device in await pixieplus_cloud.devices():
             _LOGGER.debug("Processing device - %s", device)
             if CONF_DEVICE_ID not in device:
                 _LOGGER.warning("Skipped device, missing id - %s", device)
@@ -117,7 +113,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
         if len(devices) == 0:
             return self.async_abort(reason="no_devices_found")
 
-        data = await self.hass.async_add_executor_job(pixieplus_cloud.credentials)
+        data = await pixieplus_cloud.credentials()
         data[CONF_DEVICES] = devices
 
         return self.async_create_entry(title="Pixie Plus Cloud Control", data=data)

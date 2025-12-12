@@ -1,6 +1,6 @@
 """Constants for the PixiePlus integration."""
 
-DOMAIN = "pixie_plus_cloud"
+DOMAIN = "pixie_plus"
 
 CONF_INSTALLATION_ID = "installation_id"
 CONF_SESSION_TOKEN = "session_token"

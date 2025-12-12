@@ -69,7 +69,8 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         devices = []
-        for device in await pixieplus_cloud.devices():
+        home_object = await pixieplus_cloud.home_object()
+        for device in home_object["deviceList"]:
             _LOGGER.debug("Processing device - %s", device)
             if CONF_DEVICE_ID not in device:
                 _LOGGER.warning("Skipped device, missing id - %s", device)

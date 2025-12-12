@@ -4,6 +4,7 @@ import websocket
 import json
 import uuid
 import logging
+import time
 
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from .const import (
@@ -78,8 +79,12 @@ class PixiePlusCloud:
             else self._current_home_id
         )
 
+        # Initialise required Ids
+        await self.currentHomeId()
+        await self.liveGroupId()
+
     def connect_ws(self, ssl_context):
-        websocket.enableTrace(True)
+        websocket.enableTrace(False)
 
         self._pixieplus_ws_conn = websocket.WebSocketApp(
             PIXIE_PLUS_CLOUD_WS_URL,
@@ -119,9 +124,9 @@ class PixiePlusCloud:
         if opcode == "connected" and clientId is not None:
             _LOGGER.info("Connected to PixiePlus Cloud WebSocket")
             self._pixieplus_ws_client_id = clientId
-            self._subscribeHomeUpdates(ws)
-            self._subscribeLiveGroupUpdates(ws)
-            self._subscribeHPUpdates(ws)
+            self._subscribe_home_updates(ws)
+            self._subscribe_live_group_updates(ws)
+            self._subscribe_hp_updates(ws)
             return
         if opcode == "subscribed" and clientId == self._pixieplus_ws_client_id:
             _LOGGER.info(
@@ -129,7 +134,7 @@ class PixiePlusCloud:
             )
             return
         if opcode == "update":
-            _LOGGER.info("Received update message: %s", message_data)
+            _LOGGER.info("Received update message")
             if classObject is not None:
                 className = classObject.get("className", None)
                 if (
@@ -163,24 +168,34 @@ class PixiePlusCloud:
         )
         ws.send(payload)
 
-    def _subscribe_class_update_listener(self, class_name: str, callback: any):
-        if class_name not in self._pixieplus_ws_listeners:
-            self._pixieplus_ws_listeners[class_name] = []
-        self._pixieplus_ws_listeners[class_name].append(callback)
-
-    def _subscribeHomeUpdates(self, ws):
+    def _subscribe_home_updates(self, ws):
         self._ws_subscribe_class(ws, 2, "Home", {"objectId": self._current_home_id})
 
-    def _subscribeLiveGroupUpdates(self, ws):
+    def _subscribe_live_group_updates(self, ws):
         self._ws_subscribe_class(ws, 1, "LiveGroup", {"objectId": self._live_group_id})
 
-    def _subscribeHPUpdates(self, ws):
+    def _subscribe_hp_updates(self, ws):
         self._ws_subscribe_class(
             ws,
             3,
             "HP",
             {"homeId": self._current_home_id, "userId": self._user_object_id},
         )
+
+    def _subscribe_class_update_listener(self, class_name: str, callback):
+        if class_name not in self._pixieplus_ws_listeners:
+            self._pixieplus_ws_listeners[class_name] = []
+        if callback not in self._pixieplus_ws_listeners[class_name]:
+            self._pixieplus_ws_listeners[class_name].append(callback)
+
+    def subscribe_home_updates(self, callback):
+        self._subscribe_class_update_listener("Home", callback)
+
+    def subscribe_live_group_updates(self, callback):
+        self._subscribe_class_update_listener("LiveGroup", callback)
+
+    def subscribe_hp_updates(self, callback):
+        self._subscribe_class_update_listener("HP", callback)
 
     async def _fetch_class(
         self, class_name: str, where: dict = {"where": {}, "_method": "GET"}
@@ -221,28 +236,65 @@ class PixiePlusCloud:
         return self._current_home_id
 
     async def liveGroupId(self):
-        if self._live_group_id is not None or self._live_group_id == "":
-            return self._live_group_id
-
-        results = await self._fetch_class(
-            "LiveGroup",
-            {
-                "where": {
-                    "GroupID": {
-                        "$regex": await self.currentHomeId() + "$",
-                        "$options": "i",
-                    }
+        if self._live_group_id is None or self._live_group_id == "":
+            results = await self._fetch_class(
+                "LiveGroup",
+                {
+                    "where": {
+                        "GroupID": {
+                            "$regex": await self.currentHomeId() + "$",
+                            "$options": "i",
+                        }
+                    },
+                    "limit": 2,
+                    "_method": "GET",
                 },
-                "limit": 2,
-                "_method": "GET",
+            )
+            self._live_group_id = results[0]["objectId"]
+
+        return self._live_group_id
+
+    async def send_live_group_request(self, ble_data):
+        request_sent_time = int(time.time()) * 1000
+        payload = {
+            "Cmd": 2,
+            "Request": {
+                "data": {"data": ble_data, "type": "bleData"},
+                "from": self._user_object_id,
+                "time": request_sent_time,
+                "to": "ALL",
             },
+        }
+        headers = {
+            "x-parse-application-id": PIXIE_PLUS_CLOUD_APPLICATION_ID,
+            "x-parse-installation-id": self._installation_id,
+            "x-parse-client-key": PIXIE_PLUS_CLOUD_CLIENT_KEY,
+            "content-type": "application/json",
+            "x-parse-session-token": self._session_token,
+        }
+
+        response = await self._httpx_client.put(
+            PIXIE_PLUS_CLOUD_URL + "classes/LiveGroup/" + self._live_group_id,
+            headers=headers,
+            json=payload,
+        )
+        _LOGGER.info(
+            "Sent on command with payload: %s to %s",
+            json.dumps(payload),
+            PIXIE_PLUS_CLOUD_URL + "classes/LiveGroup/" + self._live_group_id,
         )
 
-        return results[0]["objectId"]
+        if response.status_code != 200:
+            # raise Exception("Sending request failed - %s" % response.json()["error"])
+            _LOGGER.error(
+                "Sending request failed with status code: %d", response.status_code
+            )
 
-    async def devices(self):
+        return request_sent_time
+
+    async def home_object(self):
         results = await self._fetch_class("Home")
-        return results[0]["deviceList"]
+        return results[0]
 
     async def credentials(self):
         return {

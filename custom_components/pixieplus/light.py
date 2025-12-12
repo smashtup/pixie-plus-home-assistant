@@ -53,7 +53,7 @@ async def async_setup_entry(
 
     handler = hass.data[DOMAIN][entry.entry_id]
     lights = []
-    for device in entry.data[CONF_DEVICES]:
+    for index, device in enumerate(entry.data[CONF_DEVICES]):
         device_specs = PIXIE_DEVICES_SPECS[device[CONF_TYPE]][device[CONF_STYPE]]
         # Skip non lights
         if device_specs[CONF_LIGHT_SWITCH] is False:
@@ -61,11 +61,13 @@ async def async_setup_entry(
 
         light = PixieLight(
             handler,
+            index,
             device[CONF_DEVICE_MAC],
             device[CONF_DEVICE_ID],
             device[CONF_DEVICE_NAME],
             device[CONF_FIRMWARE],
-            device_specs,
+            device[CONF_TYPE],
+            device[CONF_STYPE],
         )
         _LOGGER.info(
             "Setup light %s %s %s %d",
@@ -95,26 +97,33 @@ class PixieLight(CoordinatorEntity, LightEntity):
     def __init__(
         self,
         coordinator: PixiePlusHandler,
+        idx: int,
         mac: str,
         device_id: int,
         name: str,
         firmware: int,
-        device_specs,
+        device_type: int,
+        device_stype: int,
     ):
         """Initialize an PixiePlus Light."""
         super().__init__(coordinator)
+        self.idx = idx
         self._handler = coordinator
         self._mac = mac
         self._device_id = device_id
 
         self._attr_name = name
-        self._attr_unique_id = "salpixielight-%s" % self._device_id
+        self._attr_unique_id = f"salpixielight-{self._device_id}"
+
+        if self._attr_color_mode is None:
+            self._attr_color_mode = ColorMode.ONOFF
 
         self._firmware = firmware
-        self._device_specs = device_specs
+        self._device_type = device_type
+        self._device_stype = device_stype
+        self._device_specs = PIXIE_DEVICES_SPECS[device_type][device_stype]
 
         self._state = None
-        self._color_mode = False
         self._red = None
         self._green = None
         self._blue = None
@@ -159,16 +168,11 @@ class PixieLight(CoordinatorEntity, LightEntity):
         if self.color_mode != ColorMode.RGB:
             if self._white_brightness is None:
                 return None
-            return convert_value_to_available_range(
-                self._white_brightness, int(1), int(0x7F), 0, 255
-            )
+            return self._white_brightness
 
         if self._color_brightness is None:
             return None
-
-        return convert_value_to_available_range(
-            self._color_brightness, int(0xA), int(0x64), 0, 255
-        )
+        return self._color_brightness
 
     @property
     def is_on(self):
@@ -203,24 +207,25 @@ class PixieLight(CoordinatorEntity, LightEntity):
         if ATTR_BRIGHTNESS in kwargs:
             status["state"] = True
             if self.color_mode != ColorMode.RGB:
-                device_brightness = convert_value_to_available_range(
-                    kwargs[ATTR_BRIGHTNESS], 0, 255, int(1), int(0xFF)
-                )
+                device_brightness = kwargs[ATTR_BRIGHTNESS]
                 await self._handler.async_set_white_brightness(
-                    self._device_id, device_brightness
+                    self._device_type,
+                    self._device_stype,
+                    self._device_id,
+                    device_brightness,
                 )
                 status["white_brightness"] = device_brightness
             else:
-                device_brightness = convert_value_to_available_range(
-                    kwargs[ATTR_BRIGHTNESS], 0, 255, int(0xA), int(0x64)
-                )
+                device_brightness = kwargs[ATTR_BRIGHTNESS]
                 await self._handler.async_set_color_brightness(
                     self._device_id, device_brightness
                 )
                 status["color_brightness"] = device_brightness
 
         if "state" not in status:
-            await self._handler.async_on(self._device_id)
+            await self._handler.async_on(
+                self._device_type, self._device_stype, self._device_id
+            )
             status["state"] = True
 
         self.status_callback(status)
@@ -228,7 +233,9 @@ class PixieLight(CoordinatorEntity, LightEntity):
     async def async_turn_off(self, **kwargs):
         """Instruct the light to turn off."""
         _LOGGER.debug("[%s] turn off", self.unique_id)
-        await self._handler.async_off(self._device_id)
+        await self._handler.async_off(
+            self._device_type, self._device_stype, self._device_id
+        )
         self.status_callback({"state": False})
 
     @callback
@@ -259,7 +266,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
             "[%s][%s] mode[%s] Status callback: %s",
             self.unique_id,
             self.name,
-            self._attr_color_mode,
+            self.color_mode,
             status,
         )
 
@@ -267,4 +274,36 @@ class PixieLight(CoordinatorEntity, LightEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """No action here, update is handled by status_callback"""
+        """Handle updated data from the coordinator."""
+
+        device = self.coordinator.data[self.idx]
+        _LOGGER.info("Updating Light Status: %s", device)
+        new_status = {}
+
+        if self._device_specs[CONF_RGB_LIGHT]:
+            new_status["red"] = device["state"]["colour"][0]
+            new_status["green"] = device["state"]["colour"][1]
+            new_status["blue"] = device["state"]["colour"][2]
+
+        if self._device_specs[CONF_LIGHT_DIMMER]:
+            if self.color_mode != ColorMode.RGB:
+                device_brightness = convert_value_to_available_range(
+                    device["status"]["br"], 0, 100, 0, 255
+                )
+                new_status["white_brightness"] = device_brightness
+                if device["status"]["br"] > 0:
+                    self._attr_color_mode = ColorMode.BRIGHTNESS
+            else:
+                device_brightness = convert_value_to_available_range(
+                    device["status"]["br"], 0, 100, 0, 255
+                )
+                new_status["color_brightness"] = device_brightness
+        else:
+            self._attr_color_mode = ColorMode.ONOFF
+
+        if device["status"]["br"] > 0:
+            new_status["state"] = True
+        else:
+            new_status["state"] = False
+
+        self.status_callback(new_status)

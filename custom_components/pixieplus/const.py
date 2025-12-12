@@ -49,7 +49,7 @@ CMD_STOP = "stop"
 
 CMD_PLUG_SWITCH_TYPE = "00c16969"
 CMD_LIGHT_SWITCH_TYPE = "00ed6969"
-CMD_LIGHT_DIMMER_TYPE = "00c46969"
+CMD_LIGHT_DIMMER_TYPE = "00c46969ffffff"
 CMD_LIGHT_EFFECT_TYPE = "00f86969"
 
 CMD_BLE_DATA_FORMAT = "00-00000304-{{DEST}}-{{CMD_TYPE}}-{{STATE}}-{{CMD_ID}}"
@@ -258,6 +258,11 @@ PIXIE_DEVICES_SPECS = {
             "usb": 0,
             "rgb_light": False,
             "effects": [],
+            "command_ids": {
+                CMD_ON: "01",
+                CMD_OFF: "00",
+                CMD_SET_BRIGHTNESS: "00",  # value to be set dynamically
+            },
         },
     },
     24: {

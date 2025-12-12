@@ -17,12 +17,12 @@ def make_ble_command_data(type_id, stype_id, device_id, command, data):
         data: The parameters for the command as object.
     """
     command_id = device_command_id(type_id, stype_id, command)
-    command_type = device_command_type(type_id, stype_id)
+    command_type = device_command_type(type_id, stype_id, command)
     command_dest = device_id_to_hex(device_id)
 
     command_data = ""
     if data is not None:
-        command_data = data
+        command_data = f"{data}"
 
     ble_data = construct_ble_data_str(
         command_dest, command_type, command_id, command_data
@@ -53,10 +53,12 @@ def device_id_to_hex(device_id):
     return f"{device_id:02x}"
 
 
-def device_command_type(type_id, stype_id):
+def device_command_type(type_id, stype_id, command):
     pixie_device_spec = device_spec(type_id, stype_id)
     command_type = None
-    if pixie_device_spec["light_switch"] and not pixie_device_spec["light_dimmer"]:
+    if pixie_device_spec["light_switch"] and (
+        not pixie_device_spec["light_dimmer"] or command in ["on", "off"]
+    ):
         command_type = CMD_LIGHT_SWITCH_TYPE
     elif pixie_device_spec["light_dimmer"]:
         command_type = CMD_LIGHT_DIMMER_TYPE

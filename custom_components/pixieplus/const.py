@@ -8,8 +8,10 @@ CONF_USER_OBJECT_ID = "user_object_id"
 CONF_CURRENT_HOME_ID = "current_home_id"
 CONF_LIVE_GROUP_ID = "live_group_id"
 CONF_DEVICES = "devices"
+CONF_GATEWAY = "gateway"
 
 CONF_DEVICE_NAME = "name"
+CONF_BRIDGE_NAME = "bridgeName"
 CONF_DEVICE_MAC = "mac"
 CONF_DEVICE_ID = "id"
 CONF_ONLINE = "online"
@@ -24,6 +26,7 @@ CONF_COVER = "cover"
 CONF_RELAY = "relay"
 CONF_GPO = "gpo"
 CONF_USB = "usb"
+CONF_CCT_LIGHT = "cct_light"
 CONF_RGB_LIGHT = "rgb_light"
 CONF_EFFECTS = "effects"
 
@@ -54,18 +57,6 @@ CMD_LIGHT_EFFECT_TYPE = "00f86969"
 
 CMD_BLE_DATA_FORMAT = "00-00000304-{{DEST}}-{{CMD_TYPE}}-{{STATE}}-{{CMD_ID}}"
 
-
-## Example device type stype mapping attributes with default:
-# "model" : "<Pixie Model Name",
-# "manufacturer": "SAL",
-# "light_switch": False,
-# "light_dimmer": False,
-# "cover": False,
-# "relay": 0,
-# "gpo": 0,
-# "usb": 0,
-# "rgb_light": False,
-# "effects": []
 PIXIE_DEVICES_SPECS = {
     1: {
         2: {
@@ -77,6 +68,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {},
@@ -90,6 +82,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 1,
             "usb": 1,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -110,6 +103,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 2,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -130,6 +124,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 2,
             "gpo": 0,
             "usbt": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -150,6 +145,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -169,6 +165,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -188,6 +185,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -204,6 +202,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -222,6 +221,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -239,6 +239,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -256,6 +257,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -275,6 +277,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -292,6 +295,7 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
             "rgb_light": False,
             "effects": [],
             "command_ids": {
@@ -300,6 +304,26 @@ PIXIE_DEVICES_SPECS = {
                 CMD_SET_BRIGHTNESS: "00",  # value to be set dynamically
             },
         },
+    },
+    25: {
+        4: {
+            "model": "Smart Strip Kit CCT - FLBP24V2CCT/BTAM",
+            "manufacturer": "SAL",
+            "light_switch": True,
+            "light_dimmer": True,
+            "cover": False,
+            "relay": 0,
+            "gpo": 0,
+            "usb": 0,
+            "cct_light": True,
+            "rgb_light": False,
+            "effects": [],
+            "command_ids": {
+                CMD_ON: "01",
+                CMD_OFF: "00",
+                CMD_SET_BRIGHTNESS: "00",  # value to be set dynamically
+            },
+        }
     },
     27: {
         2: {
@@ -311,6 +335,27 @@ PIXIE_DEVICES_SPECS = {
             "relay": 0,
             "gpo": 0,
             "usb": 0,
+            "cct_light": False,
+            "rgb_light": True,
+            "effects": ["flash", "strobe", "fade", "smooth"],
+            "command_ids": {
+                CMD_ON: "01",
+                CMD_OFF: "00",
+                CMD_SET_COLOR: "00",  # value to be set dynamically
+                CMD_SET_BRIGHTNESS: "00",  # value to be set dynamically
+                CMD_SET_EFFECT: "00",  # value to be set dynamically
+            },
+        },
+        4: {
+            "model": "Smart Srip Kit RGB - FLBP24V2RGB/BTAM",
+            "manufacturer": "SAL",
+            "light_switch": True,
+            "light_dimmer": True,
+            "cover": False,
+            "relay": 0,
+            "gpo": 0,
+            "usb": 0,
+            "cct_light": False,
             "rgb_light": True,
             "effects": ["flash", "strobe", "fade", "smooth"],
             "command_ids": {

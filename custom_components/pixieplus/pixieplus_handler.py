@@ -17,6 +17,7 @@ from .const import (
     CONF_CURRENT_HOME_ID,
     CONF_LIVE_GROUP_ID,
     CONF_DEVICES,
+    CONF_GATEWAY,
     CONF_DEVICE_ID,
     CMD_ON,
     CMD_OFF,
@@ -50,6 +51,7 @@ class PixiePlusHandler(DataUpdateCoordinator):
         self._current_home_id = entry.data[CONF_CURRENT_HOME_ID]
         self._live_group_id = entry.data[CONF_LIVE_GROUP_ID]
         self._devices = entry.data[CONF_DEVICES]
+        self._gateway = entry.data[CONF_GATEWAY]
 
         self._last_request_time = -1
 

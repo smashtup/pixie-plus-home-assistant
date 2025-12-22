@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import logging
 
 from .pixieplus_handler import PixiePlusHandler
@@ -37,9 +38,11 @@ from .const import (
     CONF_MODEL,
     CONF_MANUFACTURER,
     CONF_FIRMWARE,
+    CONF_GATEWAY,
     CONF_LIGHT_SWITCH,
     CONF_LIGHT_DIMMER,
     CONF_RGB_LIGHT,
+    CONF_CCT_LIGHT,
     PIXIE_DEVICES_SPECS,
 )
 
@@ -68,13 +71,17 @@ async def async_setup_entry(
             device[CONF_FIRMWARE],
             device[CONF_TYPE],
             device[CONF_STYPE],
+            entry.data[CONF_GATEWAY],
         )
         _LOGGER.info(
-            "Setup light %s %s %s %d",
+            "Setup light %s %s %s %d %d %d %s",
             device[CONF_DEVICE_MAC],
             device[CONF_DEVICE_ID],
             device[CONF_DEVICE_NAME],
             device[CONF_FIRMWARE],
+            device[CONF_TYPE],
+            device[CONF_STYPE],
+            entry.data[CONF_GATEWAY],
         )
 
         lights.append(light)
@@ -104,6 +111,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
         firmware: int,
         device_type: int,
         device_stype: int,
+        gateway: dict,
     ):
         """Initialize an PixiePlus Light."""
         super().__init__(coordinator)
@@ -111,9 +119,10 @@ class PixieLight(CoordinatorEntity, LightEntity):
         self._handler = coordinator
         self._mac = mac
         self._device_id = device_id
+        self._gateway = gateway
 
         self._attr_name = name
-        self._attr_unique_id = f"salpixielight-{self._device_id}"
+        self._attr_unique_id = f"salpixieswitch-{self._device_id}"
 
         if self._attr_color_mode is None:
             self._attr_color_mode = ColorMode.ONOFF
@@ -129,6 +138,7 @@ class PixieLight(CoordinatorEntity, LightEntity):
         self._blue = None
         self._white_brightness = None
         self._color_brightness = None
+        self._color_temp = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -138,8 +148,8 @@ class PixieLight(CoordinatorEntity, LightEntity):
             name=self.name,
             manufacturer=self._device_specs[CONF_MANUFACTURER],
             model=self._device_specs[CONF_MODEL],
-            sw_version=self._firmware,
-            via_device=(DOMAIN, "Pixie Plus Hub"),
+            sw_version=f"{self._firmware}",
+            via_device=(DOMAIN, f"salpixiegateway-{self._gateway[CONF_DEVICE_ID]}"),
         )
 
     @property
@@ -182,6 +192,8 @@ class PixieLight(CoordinatorEntity, LightEntity):
     @property
     def supported_color_modes(self) -> set[ColorMode] | None:
         supported_color_modes = set()
+        if self._device_specs[CONF_CCT_LIGHT]:
+            supported_color_modes.add(ColorMode.COLOR_TEMP)
         if self._device_specs[CONF_RGB_LIGHT]:
             supported_color_modes.add(ColorMode.RGB)
         if len(supported_color_modes) == 0 and self._device_specs[CONF_LIGHT_DIMMER]:
@@ -255,18 +267,16 @@ class PixieLight(CoordinatorEntity, LightEntity):
 
         if "color_mode" in status:
             supported_color_modes = self.supported_color_modes
-            color_mode = ColorMode.ONOFF
             if status["color_mode"]:
-                color_mode = ColorMode.RGB
+                self._attr_color_mode = ColorMode.RGB
             elif ColorMode.BRIGHTNESS in supported_color_modes:
-                color_mode = self._attr_color_mode = ColorMode.BRIGHTNESS
-            self._attr_color_mode = color_mode
+                self._attr_color_mode = ColorMode.BRIGHTNESS
 
         _LOGGER.debug(
             "[%s][%s] mode[%s] Status callback: %s",
             self.unique_id,
             self.name,
-            self.color_mode,
+            self._attr_color_mode,
             status,
         )
 
@@ -281,9 +291,17 @@ class PixieLight(CoordinatorEntity, LightEntity):
         new_status = {}
 
         if self._device_specs[CONF_RGB_LIGHT]:
-            new_status["red"] = device["state"]["colour"][0]
-            new_status["green"] = device["state"]["colour"][1]
-            new_status["blue"] = device["state"]["colour"][2]
+            new_status["color_mode"] = True
+            hue_val = device["status"]["hue"]
+            if hue_val > 360:
+                new_status["red"] = 255
+                new_status["green"] = 255
+                new_status["blue"] = 255
+            else:
+                rgb_color = colorsys.hsv_to_rgb(hue_val / 360, 1, 1)
+                new_status["red"] = rgb_color[0] * 255
+                new_status["green"] = rgb_color[1] * 255
+                new_status["blue"] = rgb_color[2] * 255
 
         if self._device_specs[CONF_LIGHT_DIMMER]:
             if self.color_mode != ColorMode.RGB:

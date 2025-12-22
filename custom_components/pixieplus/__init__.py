@@ -6,7 +6,13 @@ import logging
 from .pixieplus_handler import PixiePlusHandler
 
 from .const import (
+    CONF_GATEWAY,
     DOMAIN,
+    CONF_DEVICE_NAME,
+    CONF_DEVICE_ID,
+    CONF_MODEL,
+    CONF_MANUFACTURER,
+    CONF_FIRMWARE,
 )
 
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
@@ -15,6 +21,7 @@ from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 # from homeassistant.components.cover import DOMAIN as COVER_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import device_registry as dr
 
 
 # PLATFORMS = [COVER_DOMAIN, LIGHT_DOMAIN, SWITCH_DOMAIN]
@@ -43,6 +50,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Make `handler` accessible for all platforms
     hass.data[DOMAIN][entry.entry_id] = handler
+
+    device_registry = dr.async_get(hass)
+    gateway = entry.data[CONF_GATEWAY]
+
+    _LOGGER.debug("Adding Pixie Gateway (%s)", gateway)
+
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"salpixiegateway-{gateway[CONF_DEVICE_ID]}")},
+        model=gateway[CONF_MODEL],
+        manufacturer=gateway[CONF_MANUFACTURER],
+        name=gateway[CONF_DEVICE_NAME],
+        sw_version=gateway[CONF_FIRMWARE],
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

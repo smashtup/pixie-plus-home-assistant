@@ -11,8 +11,10 @@ from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
 from .const import (
     DOMAIN,
     CONF_DEVICES,
+    CONF_GATEWAY,
     CONF_DEVICE_ID,
     CONF_DEVICE_NAME,
+    CONF_BRIDGE_NAME,
     CONF_DEVICE_MAC,
     CONF_TYPE,
     CONF_STYPE,
@@ -69,6 +71,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             )
 
         devices = []
+        gateway = None
         home_object = await pixieplus_cloud.home_object()
         for device in home_object["deviceList"]:
             _LOGGER.debug("Processing device - %s", device)
@@ -87,34 +90,39 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
             if device[CONF_STYPE] not in PIXIE_DEVICES_SPECS[device[CONF_TYPE]]:
                 _LOGGER.warning("Skipped device, invalid stype - %s", device["stype"])
                 continue
-            if CONF_DEVICE_NAME not in device:
-                _LOGGER.warning("Skipped device, missing name - %s", device)
-                continue
 
             if "version" not in device:
                 device[CONF_FIRMWARE] = "unknown"
 
-            devices.append(
-                {
-                    CONF_DEVICE_ID: device[CONF_DEVICE_ID],
-                    CONF_DEVICE_NAME: device[CONF_DEVICE_NAME],
-                    CONF_DEVICE_MAC: device[CONF_DEVICE_MAC],
-                    CONF_TYPE: device[CONF_TYPE],
-                    CONF_STYPE: device[CONF_STYPE],
-                    CONF_MODEL: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][
-                        device[CONF_STYPE]
-                    ][CONF_MODEL],
-                    CONF_MANUFACTURER: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][
-                        device[CONF_STYPE]
-                    ][CONF_MANUFACTURER],
-                    CONF_FIRMWARE: device["version"],
-                }
-            )
+            ha_device = {
+                CONF_DEVICE_ID: device[CONF_DEVICE_ID],
+                CONF_DEVICE_NAME: device.get(
+                    CONF_DEVICE_NAME,
+                    f"{PIXIE_DEVICES_SPECS[device[CONF_TYPE]][device[CONF_STYPE]][CONF_MODEL]}-{device[CONF_DEVICE_ID]}",
+                ),
+                CONF_DEVICE_MAC: device[CONF_DEVICE_MAC],
+                CONF_TYPE: device[CONF_TYPE],
+                CONF_STYPE: device[CONF_STYPE],
+                CONF_MODEL: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][device[CONF_STYPE]][
+                    CONF_MODEL
+                ],
+                CONF_MANUFACTURER: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][
+                    device[CONF_STYPE]
+                ][CONF_MANUFACTURER],
+                CONF_FIRMWARE: device["version"],
+            }
 
-        if len(devices) == 0:
+            if device[CONF_TYPE] == 1 and device[CONF_STYPE] == 2:
+                gateway = ha_device
+                gateway[CONF_DEVICE_NAME] = device[CONF_BRIDGE_NAME]
+            else:
+                devices.append(ha_device)
+
+        if len(devices) == 0 and gateway is None:
             return self.async_abort(reason="no_devices_found")
 
         data = await pixieplus_cloud.credentials()
         data[CONF_DEVICES] = devices
+        data[CONF_GATEWAY] = gateway
 
-        return self.async_create_entry(title="Pixie Plus Cloud Control", data=data)
+        return self.async_create_entry(title=f"{home_object['name']}", data=data)

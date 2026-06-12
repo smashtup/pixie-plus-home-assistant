@@ -1,5 +1,5 @@
 {
-  "name": "Pixie Plus Cloud Control",
-  "homeassistant": "2025.12.0",
+  "name": "Pixie Plus Local Control",
+  "homeassistant": "2026.6.2",
   "render_readme": true
 }

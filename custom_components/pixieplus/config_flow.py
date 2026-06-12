@@ -1,128 +1,113 @@
-"""Config flow for Pixie Plus integration."""
+"""Config flow for Pixie Plus (local control)."""
+from __future__ import annotations
 
-from typing import Mapping, Optional
-import logging
+from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.helpers.httpx_client import get_async_client
-from homeassistant.config_entries import ConfigFlow, CONN_CLASS_CLOUD_PUSH
-from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
-from .const import (
-    DOMAIN,
-    CONF_DEVICES,
-    CONF_GATEWAY,
-    CONF_DEVICE_ID,
-    CONF_DEVICE_NAME,
-    CONF_BRIDGE_NAME,
-    CONF_DEVICE_MAC,
-    CONF_TYPE,
-    CONF_STYPE,
-    CONF_MODEL,
-    CONF_MANUFACTURER,
-    CONF_FIRMWARE,
-    PIXIE_DEVICES_SPECS,
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
 )
+from homeassistant.const import CONF_DEVICES, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 
-from .pixieplus_cloud import PixiePlusCloud
-
-_LOGGER = logging.getLogger(__name__)
+from .cloud import fetch_homes
+from .const import (
+    CONF_GATEWAY,
+    CONF_HOME_ID,
+    CONF_HOME_NAME,
+    CONF_HOST,
+    CONF_MESHNET,
+    CONF_MESHNET2,
+    CONF_NETID,
+    DOMAIN,
+)
 
 
 class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a Pixie Plus config flow."""
+    """Sign in once to bootstrap mesh credentials, then run locally."""
 
     VERSION = 1
-    CONNECTION_CLASS = CONN_CLASS_CLOUD_PUSH
 
-    config: Optional[Mapping] = {}
+    def __init__(self) -> None:
+        self._homes: list[dict] = []
+        self._host: str | None = None
+        self._username: str | None = None
+        self._password: str | None = None
 
-    async def async_step_user(self, user_input: Optional[Mapping] = None):
-        errors = {}
-        username: str = ""
-        password: str = ""
-        pixieplus_cloud = None
-
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            username = user_input.get(CONF_USERNAME, "").lower()
-            password = user_input.get(CONF_PASSWORD, "")
-
-        if username and password:
-            pixieplus_cloud = PixiePlusCloud(
-                get_async_client(self.hass, True), username, password
-            )
-
+            self._host = user_input.get(CONF_HOST) or None
             try:
-                await pixieplus_cloud.login()
-            except Exception as e:
-                _LOGGER.error("Can not login to Pixie Plus Cloud [%s]", e)
-                errors[CONF_PASSWORD] = "cannot_connect"
-
-        if user_input is None or pixieplus_cloud is None or errors:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(
-                    {
-                        vol.Required(CONF_USERNAME, default=username): str,
-                        vol.Required(CONF_PASSWORD, default=password): str,
-                    }
-                ),
-                errors=errors,
-            )
-
-        devices = []
-        gateway = None
-        home_object = await pixieplus_cloud.home_object()
-        for device in home_object["deviceList"]:
-            _LOGGER.debug("Processing device - %s", device)
-            if CONF_DEVICE_ID not in device:
-                _LOGGER.warning("Skipped device, missing id - %s", device)
-                continue
-            if CONF_TYPE not in device:
-                _LOGGER.warning("Skipped device, missing type - %s", device)
-                continue
-            if device[CONF_TYPE] not in PIXIE_DEVICES_SPECS:
-                _LOGGER.warning("Skipped device, invalid type - %s", device["type"])
-                continue
-            if CONF_STYPE not in device:
-                _LOGGER.warning("Skipped device, missing stype - %s", device)
-                continue
-            if device[CONF_STYPE] not in PIXIE_DEVICES_SPECS[device[CONF_TYPE]]:
-                _LOGGER.warning("Skipped device, invalid stype - %s", device["stype"])
-                continue
-
-            if "version" not in device:
-                device[CONF_FIRMWARE] = "unknown"
-
-            ha_device = {
-                CONF_DEVICE_ID: device[CONF_DEVICE_ID],
-                CONF_DEVICE_NAME: device.get(
-                    CONF_DEVICE_NAME,
-                    f"{PIXIE_DEVICES_SPECS[device[CONF_TYPE]][device[CONF_STYPE]][CONF_MODEL]}-{device[CONF_DEVICE_ID]}",
-                ),
-                CONF_DEVICE_MAC: device[CONF_DEVICE_MAC],
-                CONF_TYPE: device[CONF_TYPE],
-                CONF_STYPE: device[CONF_STYPE],
-                CONF_MODEL: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][device[CONF_STYPE]][
-                    CONF_MODEL
-                ],
-                CONF_MANUFACTURER: PIXIE_DEVICES_SPECS[device[CONF_TYPE]][
-                    device[CONF_STYPE]
-                ][CONF_MANUFACTURER],
-                CONF_FIRMWARE: device["version"],
-            }
-
-            if device[CONF_TYPE] == 1 and device[CONF_STYPE] == 2:
-                gateway = ha_device
-                gateway[CONF_DEVICE_NAME] = device[CONF_BRIDGE_NAME]
+                self._homes = await self.hass.async_add_executor_job(
+                    fetch_homes, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
+                )
+            except ValueError:
+                errors["base"] = "invalid_auth"
+            except Exception:  # noqa: BLE001
+                errors["base"] = "cannot_connect"
             else:
-                devices.append(ha_device)
+                self._username = user_input[CONF_USERNAME]
+                self._password = user_input[CONF_PASSWORD]
+                if len(self._homes) == 1:
+                    return await self._create(self._homes[0])
+                return await self.async_step_home()
 
-        if len(devices) == 0 and gateway is None:
-            return self.async_abort(reason="no_devices_found")
+        schema = vol.Schema({
+            vol.Required(CONF_USERNAME): str,
+            vol.Required(CONF_PASSWORD): str,
+            vol.Optional(CONF_HOST): str,
+        })
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-        data = await pixieplus_cloud.credentials()
-        data[CONF_DEVICES] = devices
-        data[CONF_GATEWAY] = gateway
+    async def async_step_home(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            home = next(h for h in self._homes if h["home_id"] == user_input[CONF_HOME_ID])
+            return await self._create(home)
+        choices = {h["home_id"]: h["home_name"] for h in self._homes}
+        return self.async_show_form(
+            step_id="home", data_schema=vol.Schema({vol.Required(CONF_HOME_ID): vol.In(choices)})
+        )
 
-        return self.async_create_entry(title=f"{home_object['name']}", data=data)
+    async def _create(self, home: dict) -> ConfigFlowResult:
+        await self.async_set_unique_id(home["home_id"])
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title=f"Pixie — {home['home_name']}",
+            data={
+                CONF_USERNAME: self._username,
+                CONF_PASSWORD: self._password,
+                CONF_HOME_ID: home["home_id"],
+                CONF_HOME_NAME: home["home_name"],
+                CONF_MESHNET: home["meshnet"],
+                CONF_MESHNET2: home["meshnet2"],
+                CONF_NETID: home["netid"],
+                CONF_HOST: self._host,
+                CONF_GATEWAY: home["gateway"],
+                CONF_DEVICES: home["devices"],
+            },
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> "PixiePlusOptionsFlow":
+        return PixiePlusOptionsFlow()
+
+
+class PixiePlusOptionsFlow(OptionsFlow):
+    """Set/change the gateway IP without re-adding the integration."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None:
+            host = user_input.get(CONF_HOST, "").strip()
+            return self.async_create_entry(title="", data={CONF_HOST: host or None})
+        current = (self.config_entry.options.get(CONF_HOST)
+                   or self.config_entry.data.get(CONF_HOST) or "")
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema({vol.Optional(CONF_HOST, default=current): str}),
+        )

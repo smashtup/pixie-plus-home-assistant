@@ -1,22 +1,44 @@
 {
-  "title": "Pixie Plus Cloud Integration",
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Pixie Plus Cloud",
-        "description": "Provide the credentials you use in the Pixie Plus app",
+        "title": "Pixie Plus",
+        "description": "Sign in with your Pixie Plus account once to fetch your home's mesh credentials and device list. After setup, control is fully local on your network and your account is not used again.",
         "data": {
           "username": "Username (email)",
-          "password": "Password"
+          "password": "Password",
+          "host": "Gateway IP (optional)"
+        },
+        "data_description": {
+          "host": "Set this if Home Assistant and the gateway are on different VLANs/subnets where UDP broadcast discovery can't reach. Leave blank to auto-discover."
+        }
+      },
+      "home": {
+        "title": "Choose home",
+        "data": {
+          "home_id": "Home"
         }
       }
     },
     "error": {
-      "cannot_connect": "Can not connect/login (check logs)"
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Couldn't reach the Pixie cloud to bootstrap. Check your connection and try again."
     },
     "abort": {
-      "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
-      "no_devices_found": "[%key:common::config_flow::abort::no_devices_found%]"
+      "already_configured": "This home is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pixie gateway settings",
+        "data": {
+          "host": "Gateway IP"
+        },
+        "data_description": {
+          "host": "Set a fixed gateway IP for multi-VLAN setups, or clear it to auto-discover by UDP broadcast."
+        }
+      }
     }
   }
 }

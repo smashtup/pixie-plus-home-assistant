@@ -1,92 +1,60 @@
-"""Pixie Plus integration."""
+"""Pixie Plus — local control of SAL Pixie devices via the gateway (no cloud)."""
+from __future__ import annotations
 
-import asyncio
 import logging
 
-from .pixieplus_handler import PixiePlusHandler
-
-from .const import (
-    CONF_GATEWAY,
-    DOMAIN,
-    CONF_DEVICE_NAME,
-    CONF_DEVICE_ID,
-    CONF_MODEL,
-    CONF_MANUFACTURER,
-    CONF_FIRMWARE,
-)
-
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
-
-# from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
-# from homeassistant.components.cover import DOMAIN as COVER_DOMAIN
-from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
+from .const import (
+    CONF_DEVICE_ID,
+    CONF_DEVICE_NAME,
+    CONF_FIRMWARE,
+    CONF_GATEWAY,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
+    DOMAIN,
+)
+from .coordinator import PixieCoordinator
 
-# PLATFORMS = [COVER_DOMAIN, LIGHT_DOMAIN, SWITCH_DOMAIN]
 PLATFORMS = [LIGHT_DOMAIN]
-
 _LOGGER = logging.getLogger(__name__)
 
 
-def setup(hass, config):
-    """Set up the Pixie Plus Cover component from configuration.yaml"""
-
-    if DOMAIN not in config:  # in case there is no cover device
-        config[DOMAIN] = {}
-
-    hass.data[DOMAIN] = config[DOMAIN]
-
-    return True
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Pixie Plus via a config (flow) entry."""
+    """Set up Pixie Plus from a config entry."""
+    coordinator = PixieCoordinator(hass, entry)
+    await coordinator.async_start()
 
-    _LOGGER.info("setup config flow entry %s", entry.data)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    handler = PixiePlusHandler(hass, entry)
-
-    # Make `handler` accessible for all platforms
-    hass.data[DOMAIN][entry.entry_id] = handler
-
-    device_registry = dr.async_get(hass)
     gateway = entry.data[CONF_GATEWAY]
-
-    _LOGGER.debug("Adding Pixie Gateway (%s)", gateway)
-
-    device_registry.async_get_or_create(
+    dr.async_get(hass).async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"salpixiegateway-{gateway[CONF_DEVICE_ID]}")},
         model=gateway[CONF_MODEL],
         manufacturer=gateway[CONF_MANUFACTURER],
         name=gateway[CONF_DEVICE_NAME],
-        sw_version=gateway[CONF_FIRMWARE],
+        sw_version=f"{gateway[CONF_FIRMWARE]}",
     )
 
+    await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    await handler.async_config_entry_first_refresh()
-
+    entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
 
 
-async def async_unload_entry(hass, entry) -> bool:
+async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload when the gateway IP option changes."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unload entry %s", entry.entry_id)
-    if entry.entry_id in hass.data[DOMAIN]:
-        await hass.data[DOMAIN][entry.entry_id].async_shutdown()
-
-    unload_ok = all(
-        await asyncio.gather(
-            *[
-                hass.config_entries.async_forward_entry_unload(entry, component)
-                for component in PLATFORMS
-            ]
-        )
-    )
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        coordinator: PixieCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.async_shutdown()
+    return unloaded

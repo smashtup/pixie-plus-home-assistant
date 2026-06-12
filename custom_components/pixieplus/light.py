@@ -5,7 +5,7 @@ from __future__ import annotations
 import colorsys
 import logging
 
-from .pixieplus_handler import PixiePlusHandler
+from .coordinator import PixieCoordinator as PixiePlusHandler
 from typing import Any
 
 from homeassistant.helpers.typing import StateType
@@ -139,6 +139,18 @@ class PixieLight(CoordinatorEntity, LightEntity):
         self._white_brightness = None
         self._color_brightness = None
         self._color_temp = None
+
+    async def async_added_to_hass(self) -> None:
+        """Initialise state from the coordinator's seeded data on add.
+
+        CoordinatorEntity registers the update listener here but does not invoke
+        _handle_coordinator_update, so without this the entity stays unavailable
+        until the first gateway push. The startup cloud seed is already in
+        coordinator.data by now, so pull it immediately.
+        """
+        await super().async_added_to_hass()
+        if self.coordinator.data and self.idx < len(self.coordinator.data):
+            self._handle_coordinator_update()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -287,6 +299,10 @@ class PixieLight(CoordinatorEntity, LightEntity):
         """Handle updated data from the coordinator."""
 
         device = self.coordinator.data[self.idx]
+        if device.get("status") is None:
+            # No genuine data yet -> leave _state None so the entity stays
+            # unavailable until a real report/seed/command arrives.
+            return
         _LOGGER.info("Updating Light Status: %s", device)
         new_status = {}
 

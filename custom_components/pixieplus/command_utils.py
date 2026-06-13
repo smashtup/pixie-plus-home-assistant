@@ -114,3 +114,40 @@ def decode_report(hexstr: str):
         return None
     level = raw[12]
     return raw[10], level, level > 0
+
+# --- RGB strip codecs (confirmed byte-exact vs app, type 27 stype 4) ---------
+
+def ble_color(dest: int, r: int, g: int, b: int) -> str:
+    """Set-colour payload for RGB strips. Confirmed byte-exact vs app.
+
+    Layout (14 bytes):
+        00 000003 04 | <dest> | 00 | c1 6969 | <R> <G> <B> | ff
+    opcode 0xC1, vendor 0x6969, dest at byte 5, raw R/G/B at offsets 10-12,
+    trailing 0xFF constant. Colour and brightness are independent commands
+    (brightness uses ble_level / the 0xE7 dimmer frame).
+    """
+    return "0000000304%02x00c16969%02x%02x%02xff" % (
+        dest, r & 0xFF, g & 0xFF, b & 0xFF,
+    )
+
+
+# Effect signatures + speed bytes, decoded from app captures.
+RGB_EFFECTS = {
+    "flash": "1c9df8f2",
+    "strobe": "9db400f0",
+    "fade": "9fb400f0",
+    "smooth": "1e9df8f2",
+}
+RGB_EFFECT_SPEEDS = {"high": 0x04, "medium": 0x16, "low": 0x28}
+
+
+def ble_effect(dest: int, effect: str, speed: str = "medium") -> str:
+    """Dynamic-effect payload for RGB strips. Confirmed byte-exact vs app.
+
+    Layout (17 bytes):
+        00 000003 04 | <dest> | 00 | f8 6969 | <speed> | ff | <4-byte sig> | 00
+    speed: high=0x04, medium=0x16, low=0x28 (lower = faster).
+    """
+    sig = RGB_EFFECTS[effect]
+    spd = RGB_EFFECT_SPEEDS.get(speed, RGB_EFFECT_SPEEDS["medium"])
+    return "0000000304%02x00f86969%02xff%s00" % (dest, spd, sig)

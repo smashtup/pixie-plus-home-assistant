@@ -16,7 +16,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_RGB_COLOR,
+    ATTR_EFFECT,
     LightEntity,
+    LightEntityFeature,
     ColorMode,
 )
 from homeassistant.helpers.update_coordinator import (
@@ -38,6 +40,7 @@ from .const import (
     CONF_MODEL,
     CONF_MANUFACTURER,
     CONF_FIRMWARE,
+    CONF_EFFECTS,
     CONF_GATEWAY,
     CONF_LIGHT_SWITCH,
     CONF_LIGHT_DIMMER,
@@ -214,6 +217,17 @@ class PixieLight(CoordinatorEntity, LightEntity):
             supported_color_modes.add(ColorMode.ONOFF)
         return supported_color_modes
 
+    @property
+    def effect_list(self) -> list[str] | None:
+        effects = self._device_specs.get(CONF_EFFECTS) or []
+        return list(effects) or None
+
+    @property
+    def supported_features(self) -> LightEntityFeature:
+        if self._device_specs.get(CONF_EFFECTS):
+            return LightEntityFeature.EFFECT
+        return LightEntityFeature(0)
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Instruct the light to turn on."""
         status = {}
@@ -245,6 +259,11 @@ class PixieLight(CoordinatorEntity, LightEntity):
                     self._device_id, device_brightness
                 )
                 status["color_brightness"] = device_brightness
+
+        if ATTR_EFFECT in kwargs:
+            await self._handler.async_set_effect(self._device_id, kwargs[ATTR_EFFECT])
+            status["state"] = True
+            status["effect"] = kwargs[ATTR_EFFECT]
 
         if "state" not in status:
             await self._handler.async_on(

@@ -21,6 +21,8 @@ from .cloud import fetch_states
 from .command_utils import (
     make_ble_command_data,
     ble_level,
+    ble_color,
+    ble_effect,
     decode_report,
 )
 from .const import (
@@ -245,10 +247,24 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._set_optimistic(device_id, pct)
 
     async def async_set_color(self, device_id: int, r: int, g: int, b: int) -> None:
-        _LOGGER.debug("set_color not yet implemented for local transport")
+        await self._send_ble(ble_color(device_id, r, g, b))
+        # colour command implies the strip is on; reflect that optimistically
+        idx = self._id_to_idx.get(device_id)
+        if idx is not None:
+            st = self.data[idx]["status"] or {}
+            br = st.get("br")
+            self.data[idx]["status"] = {
+                "br": br if br else 100,
+                "hue": st.get("hue", 0),
+            }
+            self.async_set_updated_data(self.data)
 
     async def async_set_color_brightness(self, device_id: int, brightness: int) -> None:
-        _LOGGER.debug("set_color_brightness not yet implemented for local transport")
+        # this strip uses one brightness channel (the dimmer frame) for both
+        # white and colour modes
+        pct = round(brightness * 100 / 255)
+        await self._send_ble(ble_level(device_id, pct))
+        self._set_optimistic(device_id, pct)
 
-    async def async_set_effect(self, device_id: int, effect: str) -> None:
-        _LOGGER.debug("set_effect not yet implemented for local transport")
+    async def async_set_effect(self, device_id: int, effect: str, speed: str = "medium") -> None:
+        await self._send_ble(ble_effect(device_id, effect, speed))

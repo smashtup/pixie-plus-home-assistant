@@ -23,9 +23,15 @@ from .command_utils import (
     ble_level,
     ble_color,
     ble_effect,
+    ble_cct,
     decode_report,
 )
 from .const import (
+    PIXIE_DEVICES_SPECS,
+    CONF_RGB_LIGHT,
+    CONF_CCT_LIGHT,
+    CONF_TYPE,
+    CONF_STYPE,
     CONF_DEVICE_ID,
     CONF_DEVICES,
     CONF_HOME_ID,
@@ -68,6 +74,10 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._home_id = entry.data.get(CONF_HOME_ID)
         self._devices = entry.data[CONF_DEVICES]
         self._id_to_idx = {d[CONF_DEVICE_ID]: i for i, d in enumerate(self._devices)}
+        self._id_to_spec = {
+            d[CONF_DEVICE_ID]: PIXIE_DEVICES_SPECS.get(d[CONF_TYPE], {}).get(d[CONF_STYPE], {})
+            for d in self._devices
+        }
 
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -199,15 +209,18 @@ class PixieCoordinator(DataUpdateCoordinator):
         decoded = decode_report(obj.get("data", ""))
         if not decoded:
             return
-        dest, level, hue = decoded
+        dest, level, hue, colour_byte = decoded
         idx = self._id_to_idx.get(dest)
         if idx is None:
             return
+        spec = self._id_to_spec.get(dest, {})
         st = self.data[idx]["status"] or {}
-        new_status = {
-            "br": level,
-            "hue": hue if hue is not None else st.get("hue", 0),
-        }
+        new_status = {"br": level, "hue": st.get("hue", 0), "cct": st.get("cct")}
+        if spec.get(CONF_RGB_LIGHT) and hue is not None:
+            new_status["hue"] = hue
+        elif spec.get(CONF_CCT_LIGHT) and colour_byte is not None:
+            # report byte is a 0-127 warm->cool position
+            new_status["cct"] = min(1.0, colour_byte / 127)
         if st != new_status:
             self.data[idx]["status"] = new_status
             self.async_set_updated_data(self.data)
@@ -272,3 +285,14 @@ class PixieCoordinator(DataUpdateCoordinator):
 
     async def async_set_effect(self, device_id: int, effect: str, speed: str = "medium") -> None:
         await self._send_ble(ble_effect(device_id, effect, speed))
+
+    async def async_set_color_temp(self, device_id: int, position: float) -> None:
+        """position 0.0 (warmest) .. 1.0 (coolest)."""
+        await self._send_ble(ble_cct(device_id, position))
+        # CCT command implies on; reflect optimistically without clobbering br
+        idx = self._id_to_idx.get(device_id)
+        if idx is not None:
+            st = self.data[idx]["status"] or {}
+            br = st.get("br")
+            self.data[idx]["status"] = {"br": br if br else 100, "hue": st.get("hue", 0)}
+            self.async_set_updated_data(self.data)

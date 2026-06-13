@@ -102,7 +102,7 @@ def ble_level(dest: int, level_pct: int) -> str:
 
 
 def decode_report(hexstr: str):
-    """Inbound status report -> (device_id, level_0_100, hue_deg) or None.
+    """Inbound status report -> (device_id, level_0_100, hue_deg, colour_byte) or None.
 
         64 1b 10 00 00 00 00 | DC 11 02 | <id> <ctr> <level> <colour>
                                report-sig  [10]  [11]   [12]    [13]
@@ -121,8 +121,12 @@ def decode_report(hexstr: str):
     # the low 7 bits remain the real 0-100 brightness. Masking is a no-op for
     # normal reports (brightness <= 100 < 0x80).
     level = raw[12] & 0x7F
-    hue = raw[13] * 2 if len(raw) >= 14 else None
-    return raw[10], level, hue
+    colour_byte = raw[13] if len(raw) >= 14 else None
+    # RGB strips: hue = byte * 2 degrees (0xff -> white). CCT strips: byte is a
+    # 0-127 warm->cool position. Dimmers: byte is a counter (ignored). The raw
+    # byte is returned too so the coordinator can interpret it per device spec.
+    hue = colour_byte * 2 if colour_byte is not None else None
+    return raw[10], level, hue, colour_byte
 
 # --- RGB strip codecs (confirmed byte-exact vs app, type 27 stype 4) ---------
 
@@ -160,3 +164,34 @@ def ble_effect(dest: int, effect: str, speed: str = "medium") -> str:
     sig = RGB_EFFECTS[effect]
     spd = RGB_EFFECT_SPEEDS.get(speed, RGB_EFFECT_SPEEDS["medium"])
     return "0000000304%02x00f86969%02xff%s00" % (dest, spd, sig)
+
+
+# --- CCT strip codec (type 25 stype 4, FLBP24V2CCT/BTAM) ---------------------
+# Confirmed vs app captures: the colour-temperature command reuses the 0xC1
+# colour frame, but the three data bytes are a warm/cool MIXER, not RGB:
+#     00 000003 04 <dest> 00 c1 6969 <WARM> b8 <COOL> ff
+# byte[10]=warm channel, byte[11]=0xb8 const, byte[12]=cool channel.
+# The picker walks two legs (warmest -> cool -> daylight):
+#   warmest  : warm=255 cool=128
+#   midpoint : warm=255 cool=253   (cool channel ramps up)
+#   coolest  : warm=128 cool=255   (warm channel ramps down)
+CCT_WARM_MIN, CCT_WARM_MAX = 128, 255
+CCT_COOL_MIN, CCT_COOL_MAX = 128, 255
+
+
+def cct_channels(position: float) -> tuple[int, int]:
+    """position 0.0 (warmest) .. 1.0 (coolest) -> (warm_byte, cool_byte)."""
+    p = max(0.0, min(1.0, position))
+    if p <= 0.5:
+        warm = CCT_WARM_MAX
+        cool = round(CCT_COOL_MIN + (253 - CCT_COOL_MIN) * (p / 0.5))
+    else:
+        cool = CCT_COOL_MAX
+        warm = round(253 - (253 - CCT_WARM_MIN) * ((p - 0.5) / 0.5))
+    return warm, cool
+
+
+def ble_cct(dest: int, position: float) -> str:
+    """Colour-temperature payload. position 0.0=warmest .. 1.0=coolest."""
+    warm, cool = cct_channels(position)
+    return "0000000304%02x00c16969%02xb8%02xff" % (dest, warm, cool)

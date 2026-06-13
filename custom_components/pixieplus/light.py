@@ -17,6 +17,7 @@ from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_RGB_COLOR,
     ATTR_EFFECT,
+    ATTR_COLOR_TEMP_KELVIN,
     LightEntity,
     LightEntityFeature,
     ColorMode,
@@ -142,6 +143,9 @@ class PixieLight(CoordinatorEntity, LightEntity):
         self._white_brightness = None
         self._color_brightness = None
         self._color_temp = None
+        if self._device_specs[CONF_CCT_LIGHT]:
+            self._attr_min_color_temp_kelvin = 2700
+            self._attr_max_color_temp_kelvin = 6500
 
     async def async_added_to_hass(self) -> None:
         """Initialise state from the coordinator's seeded data on add.
@@ -242,6 +246,15 @@ class PixieLight(CoordinatorEntity, LightEntity):
             status["blue"] = rgb[2]
             status["state"] = True
 
+        if ATTR_COLOR_TEMP_KELVIN in kwargs:
+            kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
+            lo = self._attr_min_color_temp_kelvin
+            hi = self._attr_max_color_temp_kelvin
+            position = (kelvin - lo) / (hi - lo) if hi > lo else 0.0
+            await self._handler.async_set_color_temp(self._device_id, position)
+            status["color_temp_kelvin"] = kelvin
+            status["state"] = True
+
         if ATTR_BRIGHTNESS in kwargs:
             status["state"] = True
             if self.color_mode != ColorMode.RGB:
@@ -289,6 +302,9 @@ class PixieLight(CoordinatorEntity, LightEntity):
             self._white_brightness = status["white_brightness"]
         if "color_brightness" in status:
             self._color_brightness = status["color_brightness"]
+        if "color_temp_kelvin" in status:
+            self._attr_color_temp_kelvin = status["color_temp_kelvin"]
+            self._attr_color_mode = ColorMode.COLOR_TEMP
         if "red" in status:
             self._red = status["red"]
         if "green" in status:
@@ -337,6 +353,13 @@ class PixieLight(CoordinatorEntity, LightEntity):
                 new_status["red"] = rgb_color[0] * 255
                 new_status["green"] = rgb_color[1] * 255
                 new_status["blue"] = rgb_color[2] * 255
+
+        if self._device_specs[CONF_CCT_LIGHT]:
+            cct_pos = device["status"].get("cct")
+            if cct_pos is not None:
+                lo = self._attr_min_color_temp_kelvin
+                hi = self._attr_max_color_temp_kelvin
+                new_status["color_temp_kelvin"] = round(lo + (hi - lo) * cct_pos)
 
         if self._device_specs[CONF_LIGHT_DIMMER]:
             if self.color_mode != ColorMode.RGB:

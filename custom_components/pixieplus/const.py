@@ -2,13 +2,26 @@
 
 DOMAIN = "pixie_plus"
 
-CONF_INSTALLATION_ID = "installation_id"
-CONF_SESSION_TOKEN = "session_token"
-CONF_USER_OBJECT_ID = "user_object_id"
-CONF_CURRENT_HOME_ID = "current_home_id"
-CONF_LIVE_GROUP_ID = "live_group_id"
+UDP_PORT = 41580
+TCP_PORT = 41578
+HEARTBEAT_SECS = 10
+RECONNECT_MIN = 2
+RECONNECT_MAX = 60
+
+FLAG_COMMAND = 1
+FLAG_EACK = 2
+FLAG_HEARTBEAT = 5
+
+REPORT_SIG = bytes([0xDC, 0x11, 0x02])  # online-status-report signature
+
 CONF_DEVICES = "devices"
 CONF_GATEWAY = "gateway"
+CONF_HOST = "host"          # optional manual gateway IP (skips UDP discovery)
+CONF_MESHNET = "meshnet"
+CONF_MESHNET2 = "meshnet2"
+CONF_NETID = "netid"
+CONF_HOME_ID = "home_id"
+CONF_HOME_NAME = "home_name"
 
 CONF_DEVICE_NAME = "name"
 CONF_BRIDGE_NAME = "bridgeName"
@@ -368,57 +381,3 @@ PIXIE_DEVICES_SPECS = {
         },
     },
 }
-
-
-# ---------------------------------------------------------------------------
-# Local gateway transport (LAN) — added for cloud-free operation
-# ---------------------------------------------------------------------------
-UDP_PORT = 41580
-TCP_PORT = 41578
-HEARTBEAT_SECS = 10
-RECONNECT_MIN = 2
-RECONNECT_MAX = 60
-
-FLAG_COMMAND = 1
-FLAG_EACK = 2
-FLAG_HEARTBEAT = 5
-
-REPORT_SIG = bytes([0xDC, 0x11, 0x02])  # online-status-report signature
-
-CONF_HOST = "host"          # optional manual gateway IP (skips UDP discovery)
-CONF_MESHNET = "meshnet"
-CONF_MESHNET2 = "meshnet2"
-CONF_NETID = "netid"
-CONF_HOME_ID = "home_id"
-CONF_HOME_NAME = "home_name"
-
-
-def ble_level(dest: int, level_pct: int) -> str:
-    """Dimmer set-level payload (level_pct 0-100). Confirmed byte-exact vs app.
-
-    Layout (18 bytes, NOT padded to 20):
-        00 000003 04 | ffff | e7 6969 | 32 00 10 | <lvl255> | 00 00 | <dest> | 00
-    opcode 0xE7, vendor 0x6969, const sub-header 32 00 10, level at offset 13 on
-    a 0-255 scale (off=00, 1%=03, 50%=80, 100%=ff), dest id at offset 16.
-    NOTE asymmetry: command level is 0-255, status report level is 0-100.
-    """
-    import math
-    pct = max(0, min(100, int(level_pct)))
-    byte = math.ceil(pct * 255 / 100)
-    return "0000000304ffffe76969320010%02x0000%02x00" % (byte, dest)
-
-
-def decode_report(hexstr: str):
-    """Inbound status report -> (device_id, level_0_100, is_on) or None.
-
-        64 1b 10 00 00 00 00 | DC 11 02 | <id> <seq> <level> <counter>
-                               report-sig  [10]  [11]   [12]
-    """
-    try:
-        raw = bytes.fromhex(hexstr)
-    except ValueError:
-        return None
-    if len(raw) < 13 or raw[7:10] != REPORT_SIG:
-        return None
-    level = raw[12]
-    return raw[10], level, level > 0

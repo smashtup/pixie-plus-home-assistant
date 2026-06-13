@@ -18,7 +18,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .cloud import fetch_states
-from .command_utils import make_ble_command_data
+from .command_utils import (
+    make_ble_command_data,
+    ble_level,
+    decode_report,
+)
 from .const import (
     CONF_DEVICE_ID,
     CONF_DEVICES,
@@ -34,9 +38,7 @@ from .const import (
     HEARTBEAT_SECS,
     RECONNECT_MAX,
     RECONNECT_MIN,
-    TCP_PORT,
-    ble_level,
-    decode_report,
+    TCP_PORT
 )
 from .protocol import (
     decrypt,
@@ -72,9 +74,6 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._stopping = False
         self._seeded = False
 
-        # data[idx]["status"] is None until genuine data arrives (cloud seed,
-        # gateway report, or a command we issue); light.py treats None as
-        # unavailable. Real data is always a {"br": 0-100, "hue": int} dict.
         self.data = [{"status": None} for _ in self._devices]
 
     # -- DataUpdateCoordinator: push model, no polling ----------------------

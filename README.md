@@ -1,4 +1,4 @@
-# Pixie Plus — local Home Assistant integration
+# Pixie Plus — Local Home Assistant integration
 
 Local control of SAL **Pixie** Bluetooth-mesh devices (switches, dimmers,
 fan-lights) through the **Pixie Plus** gateway, with **no ongoing cloud
@@ -38,8 +38,6 @@ Still cloud, by necessity — only credential/state reads, never control:
   instead of waiting for the first local report. If it fails, the integration
   carries on locally.
 
-If you'd prefer zero cloud reads at startup, the seed can be disabled — open an
-issue and it can be made optional.
 
 ## Install
 
@@ -76,9 +74,4 @@ later via the integration's **Configure** screen). Only the TCP control session
 
 Plugs/outlets, relays, covers, and RGB/CCT are not yet wired into the local
 platform (the device tables and transport are in place; they're a small next
-step). Contributions welcome.
-
-## Credits
-
-Built on the reverse-engineering of the Pixie gateway LAN protocol and the
-original cloud integration's device command tables.
+step).

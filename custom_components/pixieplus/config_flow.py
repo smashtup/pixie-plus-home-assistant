@@ -77,7 +77,7 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
         await self.async_set_unique_id(home["home_id"])
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
-            title=f"Pixie — {home['home_name']}",
+            title=f"Home — {home['home_name']}",
             data={
                 CONF_USERNAME: self._username,
                 CONF_PASSWORD: self._password,

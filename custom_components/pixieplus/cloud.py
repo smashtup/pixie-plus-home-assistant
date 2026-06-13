@@ -15,9 +15,16 @@ from .const import (
     CONF_DEVICE_ID,
     CONF_DEVICE_MAC,
     CONF_DEVICE_NAME,
+    CONF_DEVICES,
     CONF_FIRMWARE,
+    CONF_GATEWAY,
+    CONF_HOME_ID,
+    CONF_HOME_NAME,
     CONF_MANUFACTURER,
+    CONF_MESHNET,
+    CONF_MESHNET2,
     CONF_MODEL,
+    CONF_NETID,
     CONF_STYPE,
     CONF_TYPE,
     PIXIE_DEVICES_SPECS,
@@ -122,13 +129,13 @@ def fetch_homes(username: str, password: str) -> list[dict]:
                        CONF_MODEL: "Gateway", CONF_MANUFACTURER: "SAL",
                        CONF_FIRMWARE: 0}
         homes.append({
-            "home_id": home.get("objectId"),
-            "home_name": _find(home, "homeName") or home.get("objectId"),
-            "meshnet": meshnet,
-            "meshnet2": meshnet2,
-            "netid": netid,
-            "gateway": gateway,
-            "devices": devices,
+            CONF_HOME_ID: home.get("objectId"),
+            CONF_HOME_NAME: _find(home, "name") or home.get("objectId"),
+            CONF_MESHNET: meshnet,
+            CONF_MESHNET2: meshnet2,
+            CONF_NETID: netid,
+            CONF_GATEWAY: gateway,
+            CONF_DEVICES: devices,
         })
 
     if not homes:

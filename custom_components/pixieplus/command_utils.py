@@ -84,3 +84,33 @@ def device_command_id(type_id, stype_id, command):
         )
 
     return command_id
+
+def ble_level(dest: int, level_pct: int) -> str:
+    """Dimmer set-level payload (level_pct 0-100). Confirmed byte-exact vs app.
+
+    Layout (18 bytes, NOT padded to 20):
+        00 000003 04 | ffff | e7 6969 | 32 00 10 | <lvl255> | 00 00 | <dest> | 00
+    opcode 0xE7, vendor 0x6969, const sub-header 32 00 10, level at offset 13 on
+    a 0-255 scale (off=00, 1%=03, 50%=80, 100%=ff), dest id at offset 16.
+    NOTE asymmetry: command level is 0-255, status report level is 0-100.
+    """
+    import math
+    pct = max(0, min(100, int(level_pct)))
+    byte = math.ceil(pct * 255 / 100)
+    return "0000000304ffffe76969320010%02x0000%02x00" % (byte, dest)
+
+
+def decode_report(hexstr: str):
+    """Inbound status report -> (device_id, level_0_100, is_on) or None.
+
+        64 1b 10 00 00 00 00 | DC 11 02 | <id> <seq> <level> <counter>
+                               report-sig  [10]  [11]   [12]
+    """
+    try:
+        raw = bytes.fromhex(hexstr)
+    except ValueError:
+        return None
+    if len(raw) < 13 or raw[7:10] != REPORT_SIG:
+        return None
+    level = raw[12]
+    return raw[10], level, level > 0

@@ -22,7 +22,7 @@
     },
     "error": {
       "invalid_auth": "Invalid username or password.",
-      "cannot_connect": "Couldn't reach the Pixie cloud to bootstrap. Check your connection and try again."
+      "cannot_connect": "Couldn't reach the Pixie cloud. Check your connection and try again."
     },
     "abort": {
       "already_configured": "This home is already set up."

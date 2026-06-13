@@ -1,5 +1,6 @@
 from .const import (
     PIXIE_DEVICES_SPECS,
+    REPORT_SIG,
     CMD_PLUG_SWITCH_TYPE,
     CMD_LIGHT_SWITCH_TYPE,
     CMD_LIGHT_DIMMER_TYPE,
@@ -101,10 +102,14 @@ def ble_level(dest: int, level_pct: int) -> str:
 
 
 def decode_report(hexstr: str):
-    """Inbound status report -> (device_id, level_0_100, is_on) or None.
+    """Inbound status report -> (device_id, level_0_100, hue_deg) or None.
 
-        64 1b 10 00 00 00 00 | DC 11 02 | <id> <seq> <level> <counter>
-                               report-sig  [10]  [11]   [12]
+        64 1b 10 00 00 00 00 | DC 11 02 | <id> <ctr> <level> <colour>
+                               report-sig  [10]  [11]   [12]    [13]
+    [12] is brightness 0-100. For RGB strips [13] is a hue byte where
+    hue_degrees = byte * 2 (0xff -> 510 => white/desaturated, which light.py
+    treats as the >360 white case). For non-RGB devices [13] is a counter and
+    the returned hue is simply ignored by the entity.
     """
     try:
         raw = bytes.fromhex(hexstr)
@@ -112,8 +117,12 @@ def decode_report(hexstr: str):
         return None
     if len(raw) < 13 or raw[7:10] != REPORT_SIG:
         return None
-    level = raw[12]
-    return raw[10], level, level > 0
+    # During an effect, bit 0x80 of [12] is set as an 'effect active' flag;
+    # the low 7 bits remain the real 0-100 brightness. Masking is a no-op for
+    # normal reports (brightness <= 100 < 0x80).
+    level = raw[12] & 0x7F
+    hue = raw[13] * 2 if len(raw) >= 14 else None
+    return raw[10], level, hue
 
 # --- RGB strip codecs (confirmed byte-exact vs app, type 27 stype 4) ---------
 

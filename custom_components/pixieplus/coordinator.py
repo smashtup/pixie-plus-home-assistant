@@ -199,13 +199,17 @@ class PixieCoordinator(DataUpdateCoordinator):
         decoded = decode_report(obj.get("data", ""))
         if not decoded:
             return
-        dest, level, _ = decoded
+        dest, level, hue = decoded
         idx = self._id_to_idx.get(dest)
         if idx is None:
             return
-        st = self.data[idx]["status"]
-        if st is None or st.get("br") != level:
-            self.data[idx]["status"] = {"br": level, "hue": (st or {}).get("hue", 0)}
+        st = self.data[idx]["status"] or {}
+        new_status = {
+            "br": level,
+            "hue": hue if hue is not None else st.get("hue", 0),
+        }
+        if st != new_status:
+            self.data[idx]["status"] = new_status
             self.async_set_updated_data(self.data)
 
     # -- sending -------------------------------------------------------------

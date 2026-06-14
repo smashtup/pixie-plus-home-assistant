@@ -59,6 +59,9 @@ from .protocol import (
 
 _LOGGER = logging.getLogger(__name__)
 _ACK = json.dumps({"op": "ack", "code": 0})
+# GwData payload that asks the gateway to dump all device states (-> broadcast
+# dump frame). Captured verbatim from the app's connect sequence.
+_STATE_DUMP_REQ = "fffe01010100000400003400d568"
 
 
 class PixieCoordinator(DataUpdateCoordinator):
@@ -132,6 +135,7 @@ class PixieCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("Pixie gateway at %s; connecting", ip)
                 self._reader, self._writer = await asyncio.open_connection(ip, TCP_PORT)
                 await self._handshake()
+                await self._request_all_states()
                 backoff = RECONNECT_MIN
                 hb = self.hass.loop.create_task(self._heartbeat_loop())
                 try:
@@ -160,6 +164,20 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._session_key = sk
         await self._send_frame(encrypt_frame(_ACK, sk, FLAG_EACK))
         _LOGGER.info("Pixie gateway authenticated")
+
+    async def _request_all_states(self) -> None:
+        """Ask the gateway to dump every device's current state.
+
+        The gateway does NOT push state on connect by itself; the app triggers it
+        with this GwData request, and the gateway replies with the broadcast dump
+        (dc1102 fe ...) that _handle_frame decodes to seed all entities.
+        """
+        if not self._session_key:
+            return
+        req = json.dumps({"data": {"type": "GwData", "data": _STATE_DUMP_REQ}},
+                         separators=(",", ":"))
+        await self._send_frame(encrypt_frame(req, self._session_key, FLAG_COMMAND))
+        _LOGGER.debug("Pixie: requested full state dump")
 
     async def _heartbeat_loop(self) -> None:
         while True:

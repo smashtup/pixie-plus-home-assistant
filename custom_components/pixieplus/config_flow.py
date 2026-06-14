@@ -1,6 +1,7 @@
 """Config flow for Pixie Plus (local control)."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -15,6 +16,7 @@ from homeassistant.const import CONF_DEVICES, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 
 from .cloud import fetch_homes
+from .local_devices import fetch_devices_local_authorized
 from .const import (
     CONF_GATEWAY,
     CONF_HOME_ID,
@@ -25,6 +27,9 @@ from .const import (
     CONF_NETID,
     DOMAIN,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -76,6 +81,22 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _create(self, home: dict) -> ConfigFlowResult:
         await self.async_set_unique_id(home["home_id"])
         self._abort_if_unique_id_configured()
+
+        # Prefer the device list straight from the gateway (no cloud); fall back
+        # to the cloud list we already fetched if the local query fails.
+        gateway = home["gateway"]
+        devices = home["devices"]
+        try:
+            local = await self.hass.async_add_executor_job(
+                fetch_devices_local_authorized, self._host,
+                home["meshnet"], home["meshnet2"], home["netid"],
+            )
+            gateway = local[CONF_GATEWAY]
+            devices = local["devices"]
+            _LOGGER.info("Pixie: using local gateway device list (%d devices)", len(devices))
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.info("Pixie: local device list unavailable (%s); using cloud list", err)
+
         return self.async_create_entry(
             title=f"Home — {home['home_name']}",
             data={
@@ -87,8 +108,8 @@ class PixiePlusConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_MESHNET2: home["meshnet2"],
                 CONF_NETID: home["netid"],
                 CONF_HOST: self._host,
-                CONF_GATEWAY: home["gateway"],
-                CONF_DEVICES: home["devices"],
+                CONF_GATEWAY: gateway,
+                CONF_DEVICES: devices,
             },
         )
 

@@ -195,3 +195,28 @@ def ble_cct(dest: int, position: float) -> str:
     """Colour-temperature payload. position 0.0=warmest .. 1.0=coolest."""
     warm, cool = cct_channels(position)
     return "0000000304%02x00c16969%02xb8%02xff" % (dest, warm, cool)
+
+
+def decode_broadcast(hexstr: str):
+    """Broadcast status dump (sent on connect) -> [(id, level_0_100, colour_byte), ...].
+
+        64 1b 10 00 00 00 00 | DC 11 02 | FE | <id ctr level colour> x N
+                               report-sig  marker   4-byte records
+
+    Same per-record layout as a single report. Returns None if not a broadcast.
+    The leading 0xFE (and any 0xFF) record is a marker and is skipped.
+    """
+    try:
+        raw = bytes.fromhex(hexstr)
+    except ValueError:
+        return None
+    if len(raw) < 11 or raw[7:10] != REPORT_SIG or raw[10] != 0xFE:
+        return None
+    body = raw[10:]
+    out = []
+    for i in range(0, len(body) - (len(body) % 4), 4):
+        dev_id, _ctr, level, colour = body[i:i + 4]
+        if dev_id in (0xFE, 0xFF):
+            continue
+        out.append((dev_id, level & 0x7F, colour))
+    return out or None

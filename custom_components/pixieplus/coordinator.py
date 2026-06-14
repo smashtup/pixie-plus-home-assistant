@@ -17,7 +17,6 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .cloud import fetch_states
 from .command_utils import (
     make_ble_command_data,
     ble_level,
@@ -25,6 +24,7 @@ from .command_utils import (
     ble_effect,
     ble_cct,
     decode_report,
+    decode_broadcast,
 )
 from .const import (
     PIXIE_DEVICES_SPECS,
@@ -69,9 +69,6 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._meshnet2 = entry.data[CONF_MESHNET2]
         self._netid = entry.data[CONF_NETID]
         self._host = entry.options.get(CONF_HOST) or entry.data.get(CONF_HOST) or None
-        self._username = entry.data.get(CONF_USERNAME)
-        self._password = entry.data.get(CONF_PASSWORD)
-        self._home_id = entry.data.get(CONF_HOME_ID)
         self._devices = entry.data[CONF_DEVICES]
         self._id_to_idx = {d[CONF_DEVICE_ID]: i for i, d in enumerate(self._devices)}
         self._id_to_spec = {
@@ -84,24 +81,17 @@ class PixieCoordinator(DataUpdateCoordinator):
         self._session_key: str | None = None
         self._run_task: asyncio.Task | None = None
         self._stopping = False
-        self._seeded = False
 
         self.data = [{"status": None} for _ in self._devices]
 
     # -- DataUpdateCoordinator: push model, no polling ----------------------
 
     async def _async_update_data(self):
-        # One-time cloud seed so entities show real state at startup, before any
-        # local status report arrives. Best-effort; failures fall back to local.
-        if not self._seeded and self._username and self._password and self._home_id:
-            self._seeded = True
-            states = await self.hass.async_add_executor_job(
-                fetch_states, self._username, self._password, self._home_id
-            )
-            for dev_id, st in states.items():
-                idx = self._id_to_idx.get(dev_id)
-                if idx is not None:
-                    self.data[idx]["status"] = {"br": st.get("br", 0), "hue": st.get("hue", 0)}
+        # No startup state seed: the cloud onlineList is stale (showed lights on
+        # when off) and the local device list carries no usable state. Genuine
+        # state comes only from the gateway's own status frames (the broadcast
+        # dump on connect + per-device reports), so entities stay unavailable
+        # until a real report arrives.
         return self.data
 
     async def async_start(self) -> None:
@@ -206,24 +196,46 @@ class PixieCoordinator(DataUpdateCoordinator):
             return
         if obj.get("type") != "bleData":
             return
-        decoded = decode_report(obj.get("data", ""))
+        data_hex = obj.get("data", "")
+
+        # Broadcast dump (sent on connect): genuine state for every device.
+        records = decode_broadcast(data_hex)
+        if records:
+            changed = False
+            for dest, level, colour_byte in records:
+                if self._apply_status(dest, level, None, colour_byte):
+                    changed = True
+            if changed:
+                self.async_set_updated_data(self.data)
+            return
+
+        decoded = decode_report(data_hex)
         if not decoded:
             return
         dest, level, hue, colour_byte = decoded
+        if self._apply_status(dest, level, hue, colour_byte):
+            self.async_set_updated_data(self.data)
+
+    def _apply_status(self, dest: int, level: int, hue, colour_byte) -> bool:
+        """Update one device's cached status. Returns True if it changed.
+
+        hue may be None (broadcast records don't pre-compute it); the colour byte
+        is interpreted per device spec (hue*2 for RGB, /127 cct position for CCT).
+        """
         idx = self._id_to_idx.get(dest)
         if idx is None:
-            return
+            return False
         spec = self._id_to_spec.get(dest, {})
         st = self.data[idx]["status"] or {}
         new_status = {"br": level, "hue": st.get("hue", 0), "cct": st.get("cct")}
-        if spec.get(CONF_RGB_LIGHT) and hue is not None:
-            new_status["hue"] = hue
+        if spec.get(CONF_RGB_LIGHT) and colour_byte is not None:
+            new_status["hue"] = hue if hue is not None else colour_byte * 2
         elif spec.get(CONF_CCT_LIGHT) and colour_byte is not None:
-            # report byte is a 0-127 warm->cool position
             new_status["cct"] = min(1.0, colour_byte / 127)
         if st != new_status:
             self.data[idx]["status"] = new_status
-            self.async_set_updated_data(self.data)
+            return True
+        return False
 
     # -- sending -------------------------------------------------------------
 

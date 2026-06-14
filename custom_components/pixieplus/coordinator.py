@@ -9,6 +9,7 @@ dimmer set-level uses the captured-and-verified frame from const.ble_level.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 
@@ -174,12 +175,52 @@ class PixieCoordinator(DataUpdateCoordinator):
             if not chunk:
                 raise ConnectionError("gateway closed connection")
             buf += chunk
-            if b"\n" in buf:
-                *frames, buf = buf.split(b"\n")
-            else:
-                frames, buf = [buf], b""
+            # Gateway frames are bare base64 with NO delimiter, and a large frame
+            # (e.g. the on-connect broadcast dump) spans multiple TCP segments.
+            # Reassemble by structure: a complete frame base64-decodes to 1+16k
+            # bytes (flag + AES-CBC blocks) and decrypts to valid JSON.
+            frames, buf = self._extract_frames(buf)
             for fr in frames:
-                self._handle_frame(fr.strip())
+                self._handle_frame(fr)
+            if len(buf) > 1 << 20:  # runaway guard; drop and resync
+                buf = b""
+
+    def _extract_frames(self, buf: bytes) -> tuple[list[bytes], bytes]:
+        """Pull all complete frames from the front of buf; return (frames, rest)."""
+        frames: list[bytes] = []
+        i, n = 0, len(buf)
+        while i < n:
+            end = i + 4
+            found = False
+            while end <= n:
+                seg = buf[i:end]
+                try:
+                    raw = base64.b64decode(seg)
+                except Exception:  # noqa: BLE001
+                    end += 4
+                    continue
+                if len(raw) >= 17 and (len(raw) - 1) % 16 == 0 and self._frame_ok(seg):
+                    frames.append(seg)
+                    i = end
+                    found = True
+                    break
+                end += 4
+            if not found:
+                break  # incomplete frame at the tail; wait for more bytes
+        return frames, buf[i:]
+
+    def _frame_ok(self, b64: bytes) -> bool:
+        """True if b64 decrypts to valid JSON under the session key."""
+        if not self._session_key:
+            return False
+        try:
+            flag, pt = decrypt_payload(b64.decode("utf-8", "ignore"), self._session_key)
+            if not pt:
+                return flag in (FLAG_EACK, FLAG_HEARTBEAT)
+            json.loads(pt.decode("utf-8", "replace"))
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _handle_frame(self, b64: bytes) -> None:
         if not b64 or not self._session_key:
